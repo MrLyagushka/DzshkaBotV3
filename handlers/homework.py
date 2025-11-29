@@ -6,7 +6,7 @@ from aiogram_calendar import SimpleCalendarCallback, SimpleCalendar
 import logging
 
 from handlers.start import Start
-from keyboards.homework import keyboard_homework
+from keyboards.homework import keyboard_homework, keyboard_homework_confirmation
 from keyboards.start import keyboard_teacher_start
 from utils.template import DinamicKeyboard
 from utils.homework import save_task
@@ -16,6 +16,7 @@ class Homework(StatesGroup):
     first = State()
     second = State()
     third = State()
+    fourth = State()
 
 router_homework = Router()
 
@@ -133,7 +134,25 @@ async def homework5(callback: CallbackQuery, callback_data: SimpleCalendarCallba
         await callback.message.answer("❌ Ошибка, обратитесь в поддержку")
 
 @router_homework.callback_query(F.data == 'send_homework', Homework.second)
-async def homework6(callback: CallbackQuery, bot: Bot, state: FSMContext):
+async def homework6(callback: CallbackQuery, state: FSMContext):
+    try:
+        await callback.answer()
+        await callback.message.edit_text("Подтвердите отправку задания", inline_message_id=callback.inline_message_id, reply_markup=keyboard_homework_confirmation.markup)
+    except Exception as e:
+        logging.error(f"Ошибка в функции homework6: {e}")
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+@router_homework.callback_query(F.data == 'confirm_cancel')
+async def homework7(callback: CallbackQuery, state: FSMContext):
+    try:
+        await callback.answer()
+        await callback.message.answer('Дополните задание', reply_markup=keyboard_homework.markup)
+    except Exception as e:
+        logging.error(f"Ошибка в функции homework7: {e}")
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+@router_homework.callback_query(F.data == 'confirm_send')
+async def homework8(callback: CallbackQuery, bot: Bot, state: FSMContext):
     try:
         data = await state.get_data()
         await callback.answer()
@@ -148,5 +167,5 @@ async def homework6(callback: CallbackQuery, bot: Bot, state: FSMContext):
             await callback.message.answer('Задание отправлено ученику!', reply_markup=keyboard_teacher_start.markup)
             await state.clear()
     except Exception as e:
-        logging.error(f"Ошибка в функции homework6: {e}")
+        logging.error(f"Ошибка в функции homework8: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')

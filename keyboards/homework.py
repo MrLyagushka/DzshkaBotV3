@@ -5,7 +5,9 @@ keyboard_homework.new_button('Прикрепить файл', 1, callback_data='
 keyboard_homework.new_button('Установить дату сдачи', 2, callback_data='set_date')
 keyboard_homework.new_button('Отправить задание', 3, callback_data='send_homework')
 
-
+keyboard_homework_confirmation = Menu('inline', 2)
+keyboard_homework_confirmation.new_button('✅ Отправить', 1, callback_data='confirm_send')
+keyboard_homework_confirmation.new_button('❌ Отменить', 2, callback_data='confirm_cancel')
 
 
 

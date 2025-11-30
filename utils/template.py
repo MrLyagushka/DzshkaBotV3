@@ -44,7 +44,9 @@ class DinamicKeyboard():
             #Передать id учеников в массиве
             data = Teacher()
             data.get_statistics(int(self.button_info.split('_')[1]))
-            self.button_list = [x['id'] for x in data.students_id]
+            self.button_list = [x['name'] for x in data.students_info]
+            self.button_list2 = [x['id'] for x in data.students_info]
+
         # elif self.button_info.split('_')[0] == 'ts':
         #     ts = Task()
         #     ts.get_task(int(self.button_info.split('_')[1]))
@@ -56,7 +58,7 @@ class DinamicKeyboard():
             row = count // self.column
             if self.button_info.split('_')[0] == 'st':
                 dinamic_keyboard.new_button(row_number=row+1, text=str(self.button_list[self.first_index+count]),# Т.к. в классе Menu, row_number идет от 0, для удобства пользования
-                                        callback_data=f'callback_data_{self.button_info.split("_")[0]}_{self.button_list[self.first_index+count]}')
+                                        callback_data=f'callback_data_{self.button_info.split("_")[0]}_{self.button_list[self.first_index+count]}_{self.button_list2[self.first_index+count]}')
             # elif self.button_info.split('_')[0] == 'ts':
             #     dinamic_keyboard.new_button(row_number=row+1, text=str(self.button_list[self.first_index+count][2]),# Т.к. в классе Menu, row_number идет от 0, для удобства пользования
             #                             callback_data=f'callback_data_{self.button_info.split("_")[0]}_{self.button_list[self.first_index+count][2]}')

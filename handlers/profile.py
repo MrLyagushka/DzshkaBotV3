@@ -32,7 +32,7 @@ async def profile1(message: Message, state: FSMContext):
 @router_profile.callback_query(F.data == 'reset_name')
 async def profile2(callback: CallbackQuery, state: FSMContext):
     try:
-        await callback.message.answer('Введите новые фамилию и имя:')
+        await callback.message.answer('Введите новое имя:')
         await callback.answer()
         await state.set_state(Profile.first)
     except Exception as e:

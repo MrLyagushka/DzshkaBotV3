@@ -38,3 +38,23 @@ def get_id_teacher(id_task: int):
     except Exception as e:
         logging.error(f"Ошибка при выполнении функции get_id_teacher: {e}")
         return None
+    
+def set_pass(id_task: int):
+    try:
+        with connect(PATH_TO_DB_TASK) as db:
+            db.row_factory = Row
+            cursor = db.cursor()
+            cursor.execute("UPDATE task SET is_active = ? WHERE id = ?", (0, id_task,))
+    except Exception as e:
+        logging.error(f"Ошибка при выполнении функции set_pass: {e}")
+        return None
+    
+def set_marks(id_task: int, mark: int):
+    try:
+        with connect(PATH_TO_DB_TASK) as db:
+            db.row_factory = Row
+            cursor = db.cursor()
+            cursor.execute("UPDATE task SET marks = ? WHERE id = ?", (mark, id_task,))
+    except Exception as e:
+        logging.error(f"Ошибка при выполнении функции set_marks: {e}")
+        return None

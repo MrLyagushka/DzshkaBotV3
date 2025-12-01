@@ -17,6 +17,7 @@ class Homework(StatesGroup):
     second = State()
     third = State()
     fourth = State()
+    fifth = State()
 
 router_homework = Router()
 
@@ -40,17 +41,18 @@ async def homework1(callback: CallbackQuery, state: FSMContext):
         await state.update_data(student_id=int(callback.data.split('_')[4]))
         await callback.answer()
         await callback.message.answer('Пришлите текст задания')
-        await state.set_state(Homework.second)
+        await state.set_state(Homework.fifth)
     except Exception as e:
         logging.error(f"Ошибка в функции homework1: {e}")
         callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_homework.message(Homework.second)
+@router_homework.message(Homework.fifth)
 async def homework2(message: Message, state: FSMContext):
     try:
         await state.update_data(homework_text=message.text)
         await message.answer('Текст задания установлен', reply_markup=keyboard_homework.markup)
         await state.update_data(homework_date=0)
+        await state.set_state(Homework.second)
     except Exception as e:
         logging.error(f"Ошибка в функции homework2: {e}")
         await message.answer('❌Ошибка, обратитесь в поддержку')

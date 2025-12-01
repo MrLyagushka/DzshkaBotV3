@@ -10,13 +10,14 @@ from handlers.profile import router_profile
 from handlers.homework import router_homework
 from handlers.service_handlers import router_service_handlers
 from handlers.catalog import router_catalog
+from handlers.main_keyboard import router_main_keyboard
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 
 async def main():
-    dp.include_routers(router_start, router_homework, router_catalog, router_profile, router_service_handlers)
+    dp.include_routers(router_start, router_main_keyboard, router_profile, router_homework, router_catalog, router_service_handlers)
     await dp.start_polling(bot)
 
 

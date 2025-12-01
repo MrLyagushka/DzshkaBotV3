@@ -6,10 +6,12 @@ keyboard_catalog.new_button('Список учеников', 2, callback_data='l
 
 keyboard_catalog_student = Menu('inline', 2)
 keyboard_catalog_student.new_button('Активные', 1, callback_data='view_active_tasks')
+keyboard_catalog_student.new_button('На проверке', 1, callback_data='view_check_tasks')
 keyboard_catalog_student.new_button('Завершенные', 2, callback_data='view_passed_tasks')
 
 keyboard_catalog_teacher = Menu('inline', 2)
 keyboard_catalog_teacher.new_button('Активные', 1, callback_data='view_active_tasks_student')
+keyboard_catalog_teacher.new_button('На проверке', 1, callback_data='view_check_tasks_student')
 keyboard_catalog_teacher.new_button('Завершенные', 2, callback_data='view_passed_tasks_student')
 
 keyboard_catalog_student_pass = Menu('inline', 3)

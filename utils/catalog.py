@@ -1,6 +1,8 @@
 from sqlite3 import connect, Row
 import logging
 
+from config import PATH_TO_DB_TASK
+
 def add_student(id_student: int, id_teacher: int):
     try:
         with connect('database.db') as db:
@@ -10,3 +12,29 @@ def add_student(id_student: int, id_teacher: int):
             db.commit()
     except Exception as e:
         logging.error(f"Ошибка при выполнении функции add_student: {e}")
+
+def save_answer_task(id_task: int, answer_text: str, answer_file_name: str | None, answer_file_type: str | None, answer_file_data: bytes | None):
+    try:
+        with connect(PATH_TO_DB_TASK) as db:
+            db.row_factory = Row
+            cursor = db.cursor()
+            cursor.execute(
+                "UPDATE task SET answer_text = ?, answer_file_name = ?, answer_file_type = ?, answer_file_data = ?, is_active = ? WHERE id = ?",
+                (answer_text, answer_file_name, answer_file_type, answer_file_data, 0, id_task)
+            )
+    except Exception as e:
+        logging.error(f"Ошибка при выполнении функции save_answer_task: {e}")
+
+def get_id_teacher(id_task: int):
+    try:
+        with connect(PATH_TO_DB_TASK) as db:
+            db.row_factory = Row
+            cursor = db.cursor()
+            cursor.execute("SELECT id_teacher FROM task WHERE id = ?", (id_task,))
+            result = cursor.fetchone()
+            if result:
+                return result['id_teacher']
+            return None
+    except Exception as e:
+        logging.error(f"Ошибка при выполнении функции get_id_teacher: {e}")
+        return None

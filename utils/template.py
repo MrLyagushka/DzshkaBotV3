@@ -50,8 +50,8 @@ class DinamicKeyboard():
         elif self.button_info.split('_')[0] == 'ts':
             data = Student()
             data.get_students_tasks(int(self.button_info.split('_')[1]))
-            self.button_list = [x['deadline'][5:10] for x in data.homework_active] 
-            self.button_list2 = [x['id'] for x in data.homework_active]
+            self.button_list = [x['deadline'][5:10] for x in data.homework_active if x['is_active'] == 1] 
+            self.button_list2 = [x['id'] for x in data.homework_active if x['is_active'] == 1]
 
         # elif self.button_info.split('_')[0] == 'tt':
         #     self.button_list = TaskBank().get_task(int(self.button_info.split('_')[1]))
@@ -62,7 +62,7 @@ class DinamicKeyboard():
                 dinamic_keyboard.new_button(row_number=row+1, text=str(self.button_list[self.first_index+count]),# Т.к. в классе Menu, row_number идет от 0, для удобства пользования
                                         callback_data=f'callback_data_{self.button_info.split("_")[0]}_{self.button_list[self.first_index+count]}_{self.button_list2[self.first_index+count]}')
             elif self.button_info.split('_')[0] == 'ts':
-                dinamic_keyboard.new_button(row_number=row+1, text='До: '+str(self.button_list[self.first_index+count]),# Т.к. в классе Menu, row_number идет от 0, для удобства пользования
+                dinamic_keyboard.new_button(row_number=row+1, text='До '+str(self.button_list[self.first_index+count]),# Т.к. в классе Menu, row_number идет от 0, для удобства пользования
                                         callback_data=f'callback_data{self.button_info.split("_")[0]}_{self.button_list[self.first_index+count]}_{self.button_list2[self.first_index+count]}')
             # elif self.button_info.split('_')[0] == 'tt':
             #     dinamic_keyboard.new_button(row_number=row+1, text=str(self.button_list[self.first_index+count][3]),# Т.к. в классе Menu, row_number идет от 0, для удобства пользования

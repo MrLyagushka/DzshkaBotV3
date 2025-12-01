@@ -23,7 +23,7 @@ class Student():
                 db.row_factory = Row
                 cursor = db.cursor()
                 cursor.execute("SELECT name FROM student WHERE id = ?", (id,))
-                self.name_student = cursor.fetchall()
+                self.name_student = cursor.fetchone()
         except Exception as e:
             print(f"Ошибка при выполнении функции get_statistics: {e}")
 
@@ -32,7 +32,7 @@ class Student():
             with connect(PATH_TO_DB_TASK) as db:
                 db.row_factory = Row
                 cursor = db.cursor()
-                cursor.execute("SELECT id, id_teacher, id_student, text, file_name, file_type, file_data, deadline FROM task WHERE id_student = ?", (id,))
+                cursor.execute("SELECT id, id_teacher, id_student, text, file_name, file_type, file_data, deadline, is_active FROM task WHERE id_student = ?", (id,))
                 self.homework_active = cursor.fetchall()
         except Exception as e:
             print(f"Ошибка при выполнении функции get_students_tasks: {e}")

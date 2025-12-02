@@ -9,8 +9,9 @@ def save_task(id_teacher: int, id_student: int, text: str, file_name: str, file_
             db.row_factory = Row
             cursor = db.cursor()
             cursor.execute("SELECT id FROM task")
-            if cursor.fetchall():
-                last_id = sorted([x['id'] for x in cursor.fetchall()])[-1] + 1
+            result = cursor.fetchall()
+            if len(result) != 0:
+                last_id = sorted([x['id'] for x in result], reverse=True)[0] + 1
             else:
                 last_id = 1
             cursor.execute(

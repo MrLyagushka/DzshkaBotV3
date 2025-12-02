@@ -122,7 +122,7 @@ async def homework5(callback: CallbackQuery, state: FSMContext):
 async def homework6(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext
 ):
     try:
-        calendar = SimpleCalendar(locale="ru")
+        calendar = SimpleCalendar()
         selected, date = await calendar.process_selection(callback, callback_data)
 
         if selected:

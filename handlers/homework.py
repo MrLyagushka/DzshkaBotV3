@@ -112,7 +112,7 @@ async def homework4(message: Message, state: FSMContext, bot: Bot):
 async def homework5(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
-        await callback.message.edit_text('Выберите дату сдачи', inline_message_id=callback.inline_message_id, reply_markup = await SimpleCalendar(locale = 'ru').start_calendar())
+        await callback.message.edit_text('Выберите дату сдачи', inline_message_id=callback.inline_message_id, reply_markup = await SimpleCalendar().start_calendar())
         await state.set_state(Homework.third)
     except Exception as e:
         logging.error(f"Ошибка в функции homework5: {e}")

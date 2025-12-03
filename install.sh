@@ -11,15 +11,16 @@ echo "✅ Начинаем развёртывание бота..."
 echo "🔧 Обновляем систему..."
 sudo apt update && sudo apt upgrade -y
 
-# 2. Устанавливаем Docker и Docker Compose v2
-echo "📥 Устанавливаем Docker и Docker Compose..."
+# 2. Устанавливаем зависимости
+echo "📥 Устанавливаем зависимости..."
+sudo apt install -y ca-certificates curl gnupg lsb-release sqlite3
 
+# 3. Устанавливаем Docker и Docker Compose v2
 if ! command -v docker &> /dev/null; then
     echo "🐳 Устанавливаем Docker..."
-    sudo apt install -y ca-certificates curl gnupg lsb-release
     sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
     sudo apt update
     sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 else
@@ -32,7 +33,7 @@ if ! docker compose version &> /dev/null; then
     exit 1
 fi
 
-# 3. Добавляем пользователя в группу docker
+# 4. Добавляем пользователя в группу docker
 if ! groups | grep -q '\bdocker\b'; then
     echo "👥 Добавляем пользователя $USER в группу docker..."
     sudo usermod -aG docker "$USER"
@@ -41,9 +42,62 @@ if ! groups | grep -q '\bdocker\b'; then
     echo "   или перезайти в систему. Сейчас продолжим через sudo при необходимости."
 fi
 
-# 4. Переходим в корень проекта
+# 5. Создаём папку db и инициализируем базы данных
+echo "🗃️  Создаём папку баз данных и инициализируем структуру..."
+mkdir -p ./db
 
-# 5. Проверяем наличие docker-compose.yml
+TASK_DB="./db/task.db"
+USERS_DB="./db/users.db"
+
+# Создаём task.db с таблицей task
+if [ ! -f "$TASK_DB" ]; then
+    echo "   → Создаём task.db..."
+    sqlite3 "$TASK_DB" "CREATE TABLE \"task\" (
+        \"id\" INTEGER,
+        \"id_teacher\" INTEGER,
+        \"id_student\" INTEGER,
+        \"deadline\" TEXT,
+        \"marks\" INTEGER,
+        \"is_active\" INTEGER,
+        \"text\" TEXT,
+        \"file_name\" TEXT,
+        \"file_type\" TEXT,
+        \"file_data\" BLOB,
+        \"answer_text\" TEXT,
+        \"answer_file_name\" TEXT,
+        \"answer_file_type\" TEXT,
+        \"answer_file_data\" BLOB
+        );
+    CREATE TABLE \"tutorial\" (
+            \"text\" TEXT
+        ); 
+    "
+fi
+
+# Создаём users.db с таблицами users, student, teacher, tutorial
+if [ ! -f "$USERS_DB" ]; then
+    echo "   → Создаём users.db..."
+    sqlite3 "$USERS_DB" "
+        CREATE TABLE \"users\" (
+            \"id\" INTEGER,
+            \"username\" TEXT
+        );
+        CREATE TABLE \"student\" (
+            \"id\" INTEGER,
+            \"username\" TEXT,
+            \"name\" TEXT,
+            \"id_teacher\" INTEGER
+        );
+        CREATE TABLE \"teacher\" (
+            \"id\" INTEGER,
+            \"username\" TEXT,
+            \"name\" TEXT
+        );
+    "
+fi
+echo "✅ Базы данных инициализированы."
+
+# 6. Проверяем наличие docker-compose.yml
 COMPOSE_FILE="docker-compose.yml"
 if [ ! -f "$COMPOSE_FILE" ]; then
     echo "❌ Не найден файл конфигурации: $COMPOSE_FILE"
@@ -55,7 +109,7 @@ fi
 
 echo "📦 Используем файл конфигурации: $COMPOSE_FILE"
 
-# 6. Создаём .env, если нет
+# 7. Создаём .env, если нет
 ENV_FILE="./.env"
 if [ ! -f "$ENV_FILE" ]; then
     echo "⚠️  Файл $ENV_FILE не найден. Создаём шаблон..."
@@ -67,7 +121,7 @@ EOF
     echo "✅ Шаблон создан. Отредактируйте $ENV_FILE и вставьте реальные токены!"
 fi
 
-# 7. Собираем и запускаем контейнеры
+# 8. Собираем и запускаем контейнеры
 echo "🚀 Собираем и запускаем ботов через Docker Compose..."
 if groups | grep -q '\bdocker\b'; then
     docker compose -f "$COMPOSE_FILE" up -d --build
@@ -76,7 +130,7 @@ else
     sudo docker compose -f "$COMPOSE_FILE" up -d --build
 fi
 
-# 8. Проверяем статус
+# 9. Проверяем статус
 echo "📊 Статус контейнеров:"
 if groups | grep -q '\bdocker\b'; then
     docker compose -f "$COMPOSE_FILE" ps
@@ -86,6 +140,6 @@ fi
 
 echo "✅ Развёртывание завершено! Боты работают в фоне."
 echo "💡 Команды для управления:"
-echo "   docker compose logs -f bot1    — смотреть логи bot1"
-echo "   docker compose restart bot2    — перезапустить bot2"
-echo "   docker compose down            — остановить ВСЁ"
+echo "   docker compose logs -f bot1    — смотреть логи"
+echo "   docker compose restart         — перезапустить"
+echo "   docker compose down            — остановить всё"

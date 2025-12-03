@@ -23,11 +23,11 @@ async def main():
     # Подключаем роутеры
     dp.include_routers(
         router_start,
+        router_tutorial,
         router_main_keyboard,
         router_profile,
         router_homework,
         router_catalog,
-        router_tutorial,
         router_service_handlers
     )
 

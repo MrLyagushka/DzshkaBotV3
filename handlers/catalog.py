@@ -3,6 +3,7 @@ from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 import logging
+import asyncio
 
 from handlers.start import Start
 from keyboards.catalog import keyboard_catalog, keyboard_catalog_teacher_check, keyboard_catalog_teacher_pass_confirm, keyboard_choice_marks, keyboard_catalog_student, keyboard_catalog_teacher, keyboard_catalog_student_pass, keyboard_catalog_student_pass_confirm
@@ -10,6 +11,7 @@ from keyboards.start import keyboard_teacher_start, keyboard_student_start
 from utils.catalog import add_student, save_answer_task, get_id_teacher, set_pass, set_marks
 from utils.users import Student, Teacher
 from utils.template import DinamicKeyboard
+from utils.images_to_pdf import process_album_after_timeout
 
 class Catalog(StatesGroup):
     first = State()
@@ -162,6 +164,66 @@ async def catalog9(callback: CallbackQuery, state: FSMContext):
     except Exception as e:
         logging.error(f"Ошибка в функции catalog9: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+@router_catalog.message(F.photo, Catalog.third)
+async def handle_photo_or_album(message: Message, state: FSMContext, bot):
+    try:
+        media_group_id = message.media_group_id
+        current_state = await state.get_data()
+
+        # === Сценарий 1: это фото из альбома ===
+        if media_group_id:
+            # Проверяем: уже ли мы в процессе сбора альбома?
+            if current_state.get("current_album_id") == media_group_id:
+                # Уже собираем этот альбом → просто добавляем фото
+                album_photos = current_state.get("album_photos", [])
+                album_photos.append(message.photo[-1].file_id)
+                await state.update_data(album_photos=album_photos)
+                return  # Ничего не отвечаем — ждём окончания таймера
+
+            else:
+                # Начинаем новый альбом
+                await state.update_data(
+                    current_album_id=media_group_id,
+                    album_photos=[message.photo[-1].file_id],
+                    waiting_for_album=True
+                )
+
+                # Запускаем фоновую задачу на обработку через таймаут
+                asyncio.create_task(
+                    process_album_after_timeout(
+                        message=message,
+                        state=state,
+                        bot=bot,
+                        chat_id=message.chat.id,
+                        expected_media_group_id=media_group_id,
+                        Homework=Catalog
+                    )
+                )
+                # Ничего не отвечаем сразу — пользователь увидит сообщение позже
+                return
+
+        # === Сценарий 2: одиночное фото ===
+        else:
+            photo = message.photo[-1]
+            file = await bot.get_file(photo.file_id)
+            file_data = await bot.download_file(file.file_path)
+            file_bytes = file_data.read()
+
+            await state.update_data(
+                file_name="photo.jpg",
+                file_type="photo",
+                file_data=file_bytes
+            )
+            await message.answer("Фото прикреплено")
+            await special_function(message, state)
+
+
+    except Exception as e:
+        logging.error(f"Ошибка в handle_photo_or_album: {e}")
+        await message.answer("❌ Ошибка при обработке фото")
+        await special_function(message, state)
+
 
 @router_catalog.message((F.document | F.photo | F.video | F.audio), Catalog.third)
 async def catalog10(message: Message, state: FSMContext, bot: Bot):

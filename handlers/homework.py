@@ -11,6 +11,8 @@ from keyboards.start import keyboard_teacher_start
 from utils.template import DinamicKeyboard
 from utils.homework import save_task
 from utils.users import Teacher
+from utils.images_to_pdf import process_album_after_timeout
+import asyncio
 
 class Homework(StatesGroup):
     first = State()
@@ -66,7 +68,119 @@ async def homework3(callback: CallbackQuery, state: FSMContext):
         logging.error(f"Ошибка в функции homework3: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_homework.message((F.document | F.photo | F.video | F.audio), Homework.third)
+@router_homework.message(F.photo, Homework.third)
+async def handle_photo_or_album(message: Message, state: FSMContext, bot):
+    try:
+        media_group_id = message.media_group_id
+        current_state = await state.get_data()
+
+        # === Сценарий 1: это фото из альбома ===
+        if media_group_id:
+            # Проверяем: уже ли мы в процессе сбора альбома?
+            if current_state.get("current_album_id") == media_group_id:
+                # Уже собираем этот альбом → просто добавляем фото
+                album_photos = current_state.get("album_photos", [])
+                album_photos.append(message.photo[-1].file_id)
+                await state.update_data(album_photos=album_photos)
+                return  # Ничего не отвечаем — ждём окончания таймера
+
+            else:
+                # Начинаем новый альбом
+                await state.update_data(
+                    current_album_id=media_group_id,
+                    album_photos=[message.photo[-1].file_id],
+                    waiting_for_album=True
+                )
+
+                # Запускаем фоновую задачу на обработку через таймаут
+                asyncio.create_task(
+                    process_album_after_timeout(
+                        state=state,
+                        bot=bot,
+                        chat_id=message.chat.id,
+                        expected_media_group_id=media_group_id,
+                        Homework=Homework
+                    )
+                )
+                # Ничего не отвечаем сразу — пользователь увидит сообщение позже
+                return
+
+        # === Сценарий 2: одиночное фото ===
+        else:
+            photo = message.photo[-1]
+            file = await bot.get_file(photo.file_id)
+            file_data = await bot.download_file(file.file_path)
+            file_bytes = file_data.read()
+
+            await state.update_data(
+                file_name="photo.jpg",
+                file_type="photo",
+                file_data=file_bytes
+            )
+            await message.answer("Фото прикреплено", reply_markup=keyboard_homework.markup)
+            await state.set_state(Homework.second)
+
+    except Exception as e:
+        logging.error(f"Ошибка в handle_photo_or_album: {e}")
+        await message.answer("❌ Ошибка при обработке фото", reply_markup=keyboard_homework.markup)
+
+@router_homework.message(F.photo, Homework.third)
+async def handle_photo_or_album(message: Message, state: FSMContext, bot):
+    try:
+        media_group_id = message.media_group_id
+        current_state = await state.get_data()
+
+        # === Сценарий 1: это фото из альбома ===
+        if media_group_id:
+            # Проверяем: уже ли мы в процессе сбора альбома?
+            if current_state.get("current_album_id") == media_group_id:
+                # Уже собираем этот альбом → просто добавляем фото
+                album_photos = current_state.get("album_photos", [])
+                album_photos.append(message.photo[-1].file_id)
+                await state.update_data(album_photos=album_photos)
+                return  # Ничего не отвечаем — ждём окончания таймера
+
+            else:
+                # Начинаем новый альбом
+                await state.update_data(
+                    current_album_id=media_group_id,
+                    album_photos=[message.photo[-1].file_id],
+                    waiting_for_album=True
+                )
+
+                # Запускаем фоновую задачу на обработку через таймаут
+                asyncio.create_task(
+                    process_album_after_timeout(
+                        state=state,
+                        bot=bot,
+                        chat_id=message.chat.id,
+                        media_group_id=media_group_id
+                    )
+                )
+                # Ничего не отвечаем сразу — пользователь увидит сообщение позже
+                return
+
+        # === Сценарий 2: одиночное фото ===
+        else:
+            photo = message.photo[-1]
+            file = await bot.get_file(photo.file_id)
+            # === Безопасное получение file_bytes ===
+            file_data = await bot.download_file(file.file_path)
+            file_bytes = file_data.read() if hasattr(file_data, 'read') else file_data
+
+            await state.update_data(
+                file_name="photo.jpg",
+                file_type="photo",
+                file_data=file_bytes
+            )
+            await message.answer("Фото прикреплено", reply_markup=keyboard_homework.markup)
+            await state.set_state(Homework.second)
+
+    except Exception as e:
+        logging.error(f"Ошибка в handle_photo_or_album: {e}")
+        await message.answer("❌ Ошибка при обработке фото", reply_markup=keyboard_homework.markup)
+
+@router_homework.message((F.document | F.video | F.audio), Homework.third)
 async def homework4(message: Message, state: FSMContext, bot: Bot):
     try:
         # 2. Определяем тип и скачиваем файл → получаем bytes

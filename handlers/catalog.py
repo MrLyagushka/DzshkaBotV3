@@ -55,6 +55,7 @@ async def special_function_callback(callback: CallbackQuery, state: FSMContext):
 @router_catalog.callback_query(F.data == 'add_student')
 async def catalog2(callback: CallbackQuery, state: FSMContext):
     try:
+        await callback.answer()
         await callback.message.answer('Введите id ученика для добавления')
         await state.set_state(Catalog.first)
     except Exception as e:

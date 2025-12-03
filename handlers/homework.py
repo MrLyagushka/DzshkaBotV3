@@ -2,7 +2,7 @@ from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram_calendar import SimpleCalendarCallback, SimpleCalendar
+from aiogram_calendar import SimpleCalendarCallback, SimpleCalendar, simple_calendar
 import logging
 
 from handlers.start import Start
@@ -122,24 +122,24 @@ async def homework5(callback: CallbackQuery, state: FSMContext):
 async def homework6(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext
 ):
     try:
-        calendar = SimpleCalendar()
-        selected, date = await calendar.process_selection(callback, callback_data)
-
-        if selected:
-            await state.set_state(Homework.fourth)
-            await state.update_data(homework_date=str(date))
-            await callback.answer()
-            await callback.message.edit_text("Выберите час сдачи", reply_markup=keyboard_time_selection.markup)
+        if callback_data.act == simple_calendar.SimpleCalAct.cancel:
+            await callback.message.answer('Выберите', reply_markup=keyboard_homework.markup)
         else:
-            # Пользователь нажал не на дату, а на навигацию (месяц/год)
-            # Календарь уже обновлён process_selection → ничего не делаем
-            await callback.answer()
+            calendar = SimpleCalendar()
+            selected, date = await calendar.process_selection(callback, callback_data)
+
+            if selected:
+                await state.set_state(Homework.fourth)
+                await state.update_data(homework_date=str(date))
+                await callback.answer()
+                await callback.message.edit_text("Выберите дедлайн", reply_markup=keyboard_time_selection.markup)
+
     except Exception as e:
         logging.error(f"Ошибка в функции homework6: {e}")
         await callback.message.answer("❌ Ошибка, обратитесь в поддержку")
 
 @router_homework.callback_query(F.data[:4] == 'time', Homework.fourth)
-async def homework10(callback: CallbackQuery, state: FSMContext):
+async def homework7(callback: CallbackQuery, state: FSMContext):
     try:
         hour = callback.data.split('_')[1]
         data = await state.get_data()
@@ -150,29 +150,40 @@ async def homework10(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text("Время сдачи установлено", reply_markup=keyboard_homework.markup)
         await state.set_state(Homework.second)
     except Exception as e:
-        logging.error(f"Ошибка в функции homework10: {e}")
+        logging.error(f"Ошибка в функции homework7: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
+@router_homework.callback_query(F.data == 'cancel_time_selection', Homework.fourth)
+async def homework8(callback: CallbackQuery, state: FSMContext):
+    try:
+        await callback.answer()
+        await callback.message.edit_text('Выберите дату сдачи', inline_message_id=callback.inline_message_id, reply_markup = await SimpleCalendar().start_calendar())
+        await state.set_state(Homework.third)
+    except Exception as e:
+        logging.error(f"Ошибка в функции homework5: {e}")
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+
 @router_homework.callback_query(F.data == 'send_homework', Homework.second)
-async def homework7(callback: CallbackQuery, state: FSMContext):
+async def homework9(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
         await callback.message.edit_text("Подтвердите отправку задания", inline_message_id=callback.inline_message_id, reply_markup=keyboard_homework_confirmation.markup)
     except Exception as e:
-        logging.error(f"Ошибка в функции homework7: {e}")
+        logging.error(f"Ошибка в функции homework9: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_homework.callback_query(F.data == 'confirm_cancel')
-async def homework8(callback: CallbackQuery, state: FSMContext):
+async def homework10(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
         await callback.message.answer('Дополните задание', reply_markup=keyboard_homework.markup)
     except Exception as e:
-        logging.error(f"Ошибка в функции homework8: {e}")
+        logging.error(f"Ошибка в функции homework10: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_homework.callback_query(F.data == 'confirm_send')
-async def homework9(callback: CallbackQuery, bot: Bot, state: FSMContext):
+async def homework11(callback: CallbackQuery, bot: Bot, state: FSMContext):
     try:
         data = await state.get_data()
         await callback.answer()
@@ -187,5 +198,5 @@ async def homework9(callback: CallbackQuery, bot: Bot, state: FSMContext):
             await callback.message.answer('Задание отправлено ученику!', reply_markup=keyboard_teacher_start.markup)
             await state.clear()
     except Exception as e:
-        logging.error(f"Ошибка в функции homework9: {e}")
+        logging.error(f"Ошибка в функции homework11: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')

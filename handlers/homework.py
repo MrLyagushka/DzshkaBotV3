@@ -11,7 +11,7 @@ from keyboards.start import keyboard_teacher_start
 from utils.template import DinamicKeyboard
 from utils.homework import save_task
 from utils.users import Teacher
-from utils.images_to_pdf import process_album_after_timeout
+from utils.images_to_pdf import process_album_after_timeout, process_album_after_timeout2
 import asyncio
 
 class Homework(StatesGroup):
@@ -94,7 +94,8 @@ async def handle_photo_or_album(message: Message, state: FSMContext, bot):
 
                 # Запускаем фоновую задачу на обработку через таймаут
                 asyncio.create_task(
-                    process_album_after_timeout(
+                    process_album_after_timeout2(
+                        message=message,
                         state=state,
                         bot=bot,
                         chat_id=message.chat.id,

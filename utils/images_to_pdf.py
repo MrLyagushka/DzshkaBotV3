@@ -1,5 +1,6 @@
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, BufferedInputFile
+from aiogram import Bot
 import asyncio
 import logging
 import io
@@ -64,7 +65,7 @@ def images_to_pdf(image_bytes_list: list[bytes]) -> bytes:
     buffer.seek(0)
     return buffer.read()
 
-async def process_album_after_timeout(message: Message, state: FSMContext, bot, chat_id: int, expected_media_group_id: str, Homework):
+async def process_album_after_timeout(message: Message, state: FSMContext, bot: Bot, chat_id: int, expected_media_group_id: str, Homework):
     """Фоновая функция: ждёт 2 сек, проверяет, закончился ли альбом, и конвертирует в PDF."""
     await asyncio.sleep(2)  # дать время на приход всех фото
 
@@ -114,4 +115,55 @@ async def process_album_after_timeout(message: Message, state: FSMContext, bot, 
     )
     await bot.send_message(chat_id, "Файл успешно прикреплен")
     await special_function(message, state)
+
+
+async def process_album_after_timeout2(message: Message, state: FSMContext, bot: Bot, chat_id: int, expected_media_group_id: str, Homework):
+    """Фоновая функция: ждёт 2 сек, проверяет, закончился ли альбом, и конвертирует в PDF."""
+    await asyncio.sleep(2)  # дать время на приход всех фото
+
+    data = await state.get_data()
+
+    # Проверяем: альбом всё ещё актуален?
+    if data.get("current_album_id") != expected_media_group_id:
+        return  # уже другой альбом → игнорируем
+
+    file_ids = data.get("album_photos", [])
+    if not file_ids:
+        return
+
+    # Скачиваем все фото
+    photo_bytes_list = []
+    for file_id in file_ids:
+        try:
+            file = await bot.get_file(file_id)
+            # === Безопасное получение file_bytes ===
+            file_data = await bot.download_file(file.file_path)
+            file_bytes = file_data.read() if hasattr(file_data, 'read') else file_data
+            photo_bytes_list.append(file_bytes)
+        except Exception as e:
+            logging.warning(f"Не удалось скачать фото {file_id}: {e}")
+
+    if not photo_bytes_list:
+        await bot.send_message(chat_id, "❌ Не удалось загрузить фото для альбома.")
+        return
+
+    # Конвертируем в PDF
+    from utils.images_to_pdf import images_to_pdf
+    try:
+        pdf_bytes = images_to_pdf(photo_bytes_list)
+    except Exception as e:
+        logging.error(f"Ошибка конвертации в PDF: {e}")
+        await bot.send_message(chat_id, "❌ Ошибка при создании PDF.")
+        return
+
+    # Сохраняем в state и уведомляем
+    await state.update_data(
+        file_name="homework_album.pdf",
+        file_type="document",
+        file_data=pdf_bytes,
+        current_album_id=None,
+        album_photos=[],
+        waiting_for_album=False
+    )
+    await bot.send_message(chat_id, "Файл успешно прикреплен", reply_markup=keyboard_homework.markup)
     await state.set_state(Homework.second)

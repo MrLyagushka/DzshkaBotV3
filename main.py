@@ -18,7 +18,7 @@ dp = Dispatcher()
 
 
 async def main():
-    dp.include_routers(router_start, router_main_keyboard, router_profile, router_homework, router_catalog, router_tutorial, router_service_handlers)
+    dp.include_routers(router_start, router_main_keyboard, router_tutorial, router_profile, router_homework, router_catalog, router_service_handlers)
     await dp.start_polling(bot)
 
 

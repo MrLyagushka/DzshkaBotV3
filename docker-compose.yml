@@ -3,7 +3,8 @@ version: '3.8'
 services:
   bot_dzshka:
      build: .
-     volumes: ./db:/app/db
+     volumes: 
+         - ./db:/app/db
      container_name: bot_dzshka3
      restart: unless-stopped
      env_file: ./.env

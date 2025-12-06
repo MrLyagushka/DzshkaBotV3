@@ -499,11 +499,12 @@ async def catalog24(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data == 'confirm')
-async def catalog25(callback: CallbackQuery, state: FSMContext):
+async def catalog25(callback: CallbackQuery, state: FSMContext, bot: Bot):
     try:
         await callback.answer()
-        set_pass((await state.get_data())['selected_task_id'])
+        data = set_pass((await state.get_data())['selected_task_id'])[0]
         await callback.message.answer('Задание отмечено как завершенное', reply_markup=keyboard_teacher_start.markup)
+        await bot.send_message(data['id_student'], f'Вам выставили оценку {data["marks"]} по дз на {data["deadline"]}')
     except Exception as e:
         logging.error(f"Ошибка в функции catalog25: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')

@@ -45,6 +45,8 @@ def set_pass(id_task: int):
             db.row_factory = Row
             cursor = db.cursor()
             cursor.execute("UPDATE task SET is_active = ? WHERE id = ?", (0, id_task,))
+            cursor.execute("SELECT id_student, deadline, marks FROM task WHERE id = ?", (id_task,))
+            return cursor.fetchall()
     except Exception as e:
         logging.error(f"Ошибка при выполнении функции set_pass: {e}")
         return None

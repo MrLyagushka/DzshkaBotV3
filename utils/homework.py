@@ -3,6 +3,16 @@ import logging
 
 from config import PATH_TO_DB_TASK
 
+async def get_task():
+    try:
+        with connect(PATH_TO_DB_TASK) as db:
+            db.row_factory = Row
+            cursor = db.cursor()
+            cursor.execute("SELECT id, id_student, id_teacher, deadline, marks, is_active FROM task WHERE is_active = 1")
+            return cursor.fetchall()
+    except Exception as e:
+        logging.error(f"Возникла ошибка при выполнении функции get_task: {e}")
+
 def save_task(id_teacher: int, id_student: int, text: str, file_name: str, file_type: str, file_data: bytes, homework_date: str):
     try:
         with connect(PATH_TO_DB_TASK) as db:

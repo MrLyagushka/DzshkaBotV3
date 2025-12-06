@@ -1,9 +1,11 @@
-# main.py
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from datetime import datetime, timedelta
+import pytz
 import asyncio
 import logging
 
 from aiogram import Dispatcher, Bot
-from config import BOT_TOKEN, ADMIN_ID  # ← убедись, что ADMIN_ID есть в config.py
+from config import BOT_TOKEN, ADMIN_ID
 from handlers.start import router_start
 from handlers.profile import router_profile
 from handlers.homework import router_homework
@@ -12,12 +14,13 @@ from handlers.catalog import router_catalog
 from handlers.main_keyboard import router_main_keyboard
 from handlers.tutorial import router_tutorial
 
-# Импорт бекапа
+from utils.reminders import send_reminder_3d, send_reminder_1d
 from utils.backup import backup_scheduler, create_backup
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+scheduler = AsyncIOScheduler(timezone=pytz.timezone("Europe/Moscow"))
 
 async def main():
     # Подключаем роутеры
@@ -35,6 +38,23 @@ async def main():
     asyncio.create_task(backup_scheduler(bot))
     asyncio.create_task(create_backup(bot))
 
+    scheduler.add_job(
+        send_reminder_3d,
+        "cron",
+        hour=9, minute=0,
+        args=[bot],
+        id=f"hw_reminder_3d"
+    )
+    scheduler.add_job(
+        send_reminder_1d,
+        "cron",
+        hour=9, minute=0,
+        args=[bot],
+        id=f"hw_reminder_1d"
+    )
+
+    scheduler.start()
+    
     await dp.start_polling(bot)
 
 

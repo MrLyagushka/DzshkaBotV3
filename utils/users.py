@@ -32,7 +32,7 @@ class Student():
             with connect(PATH_TO_DB_TASK) as db:
                 db.row_factory = Row
                 cursor = db.cursor()
-                cursor.execute("SELECT id, id_teacher, id_student, text, file_name, file_type, file_data, deadline, is_active, answer_text, answer_file_name, answer_file_type, answer_file_data, marks FROM task WHERE id_student = ?", (id,))
+                cursor.execute("SELECT id, id_teacher, id_student, text, file_name, file_type, file_data, deadline, is_active, answer_text, answer_file_name, answer_file_type, answer_file_data, marks FROM task WHERE id_student = ? ORDER BY deadline DESC", (id,))
                 self.homework_active = cursor.fetchall()
         except Exception as e:
             print(f"Ошибка при выполнении функции get_students_tasks: {e}")

@@ -60,3 +60,13 @@ def set_marks(id_task: int, mark: int):
     except Exception as e:
         logging.error(f"Ошибка при выполнении функции set_marks: {e}")
         return None
+    
+def update_deadline(id_task: int, new_deadline: str):
+    try:
+        with connect(PATH_TO_DB_TASK) as db:
+            db.row_factory = Row
+            cursor = db.cursor()
+            cursor.execute("UPDATE task SET deadline = ? WHERE id = ?", (new_deadline, id_task,))
+    except Exception as e:
+        logging.error(f"Ошибка при выполнении функции update_deadline: {e}")
+        return None

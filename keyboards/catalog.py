@@ -15,8 +15,8 @@ keyboard_catalog_teacher.new_button('На проверке', 1, callback_data='v
 keyboard_catalog_teacher.new_button('Завершенные', 2, callback_data='view_passed_tasks_teacher')
 
 keyboard_catalog_student_pass = Menu('inline', 3)
-keyboard_catalog_student_pass.new_button('Добавить файл', 1, callback_data='add_file_to_task')
-keyboard_catalog_student_pass.new_button('Добавить текст', 2, callback_data='add_text_to_task')
+keyboard_catalog_student_pass.new_button('Добавить файл к ответу', 1, callback_data='add_file_to_task')
+keyboard_catalog_student_pass.new_button('Добавить текст к ответу', 2, callback_data='add_text_to_task')
 keyboard_catalog_student_pass.new_button('✅ Сдать', 3, callback_data='pass_task')
 
 keyboard_catalog_student_pass_confirm = Menu('inline', 2)
@@ -27,7 +27,8 @@ keyboard_catalog_teacher_check = Menu('inline', 2)
 # keyboard_catalog_teacher_check.new_button('Добавить комментарий', 1, callback_data='set_comment')
 # keyboard_catalog_teacher_check.new_button('Отправить на перепроверку')
 keyboard_catalog_teacher_check.new_button('Поставить оценку', 1, callback_data='set_marks')
-keyboard_catalog_teacher_check.new_button('Отметить как решенное', 2, callback_data='set_passed')
+keyboard_catalog_teacher_check.new_button('Отметить как решенное', 1, callback_data='set_passed')
+keyboard_catalog_teacher_check.new_button('Изменить дедлайн', 2, callback_data='change_deadline') 
 
 keyboard_catalog_teacher_check_passed_task = Menu('inline', 2)
 # keyboard_catalog_teacher_check_passed_task.new_button('Добавить комментарий', 1, callback_data='set_comment')

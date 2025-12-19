@@ -55,13 +55,13 @@ class DinamicKeyboard():
 
         elif self.button_info.split('_')[0] == 'tsd':
             data = Student()
-            data.get_students_tasks(int(self.button_info.split('_')[1]), reverse=True)
+            data.get_students_tasks(int(self.button_info.split('_')[1]))
             self.button_list = [x['deadline'][5:10] for x in data.homework_active if x['is_active'] == 0] 
             self.button_list2 = [x['id'] for x in data.homework_active if x['is_active'] == 0]
         
         elif self.button_info.split('_')[0] == 'tsp':
             data = Student()
-            data.get_students_tasks(int(self.button_info.split('_')[1]))
+            data.get_students_tasks(int(self.button_info.split('_')[1]), reverse=True)
             self.button_list = [x['deadline'][5:10] for x in data.homework_active if x['is_active'] == -1] 
             self.button_list2 = [x['id'] for x in data.homework_active if x['is_active'] == -1]
         # elif self.button_info.split('_')[0] == 'tt':

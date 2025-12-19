@@ -6,7 +6,7 @@ from aiogram_calendar import SimpleCalendarCallback, SimpleCalendar, simple_cale
 import logging
 
 from handlers.start import Start
-from keyboards.homework import keyboard_homework, keyboard_homework_confirmation, keyboard_time_selection
+from keyboards.homework import keyboard_homework, keyboard_homework_confirmation, keyboard_time_selection, keyboard_homework_add_file
 from keyboards.start import keyboard_teacher_start
 from utils.template import DinamicKeyboard
 from utils.homework import save_task
@@ -62,10 +62,23 @@ async def homework2(message: Message, state: FSMContext):
 @router_homework.callback_query(F.data == 'send_file', Homework.second)
 async def homework3(callback: CallbackQuery, state: FSMContext):
     try:
+        await callback.answer()
         await callback.message.edit_text('Пришлите файл с заданием', inline_message_id=callback.inline_message_id)
+        await callback.message.edit_reply_markup(reply_markup=keyboard_homework_add_file.markup)
         await state.set_state(Homework.third)
     except Exception as e:
         logging.error(f"Ошибка в функции homework3: {e}")
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+@router_homework.callback_query(F.data == 'cancel_to_homework', Homework.third)
+async def homework4(callback: CallbackQuery, state: FSMContext):
+    try:
+        await callback.answer()
+        await callback.message.edit_text('Выберите', inline_message_id=callback.inline_message_id)
+        await callback.message.edit_reply_markup(reply_markup=keyboard_homework.markup)
+        await state.set_state(Homework.second)
+    except Exception as e:
+        logging.error(f"Ошибка в функции homework4: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_homework.message(F.photo, Homework.third)
@@ -239,6 +252,7 @@ async def homework6(callback: CallbackQuery, callback_data: SimpleCalendarCallba
     try:
         if callback_data.act == simple_calendar.SimpleCalAct.cancel:
             await callback.message.answer('Выберите', reply_markup=keyboard_homework.markup)
+            await state.set_state(Homework.second)
         else:
             calendar = SimpleCalendar()
             selected, date = await calendar.process_selection(callback, callback_data)

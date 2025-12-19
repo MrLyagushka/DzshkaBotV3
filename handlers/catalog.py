@@ -4,11 +4,14 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 import logging
 import asyncio
+from aiogram_calendar import SimpleCalendarCallback, SimpleCalendar, simple_calendar
+
 
 from handlers.start import Start
 from keyboards.catalog import keyboard_catalog, keyboard_catalog_teacher_check, keyboard_catalog_teacher_pass_confirm, keyboard_choice_marks, keyboard_catalog_student, keyboard_catalog_teacher, keyboard_catalog_student_pass, keyboard_catalog_student_pass_confirm, keyboard_catalog_teacher_check_passed_task
 from keyboards.start import keyboard_teacher_start, keyboard_student_start
-from utils.catalog import add_student, save_answer_task, get_id_teacher, set_pass, set_marks
+from keyboards.homework import keyboard_time_selection
+from utils.catalog import add_student, save_answer_task, get_id_teacher, set_pass, set_marks, update_deadline
 from utils.users import Student, Teacher
 from utils.template import DinamicKeyboard
 from utils.images_to_pdf import process_album_after_timeout
@@ -23,6 +26,21 @@ class Catalog(StatesGroup):
     seventh = State()
 
 router_catalog = Router()
+
+async def special_function_callback_not_callback(callback: CallbackQuery, state: FSMContext):
+    task_id = (await state.get_data())['selected_task_id']
+    student = Student()
+    student.get_students_tasks((await state.get_data())['id_student'])
+    selected_task = [task for task in student.homework_active if task['id'] == task_id]
+    if selected_task:
+        teacher = Teacher()
+        teacher.get_statistics(selected_task[0]['id_teacher'])
+        if selected_task[0]['file_name'] != None:
+            document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
+            await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
+        await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания: {selected_task[0]['text']}", reply_markup=keyboard_catalog_teacher_check.markup)
+    else:
+        await callback.message.answer("Задание не найдено.")
 
 async def special_function(message: Message, state: FSMContext):
     task_id = (await state.get_data())['selected_task_id']
@@ -442,7 +460,7 @@ async def catalog19(callback: CallbackQuery, state: FSMContext):
             if selected_task[0]['file_name'] != None:
                 document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
                 await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
-            await callback.message.answer(f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания: {selected_task[0]['text']}", reply_markup=keyboard_catalog_teacher_check.markup)
+            await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания: {selected_task[0]['text']}", reply_markup=keyboard_catalog_teacher_check.markup)
         else:
             await callback.message.answer("Задание не найдено.")
     except Exception as e:
@@ -485,9 +503,9 @@ async def catalog21(callback: CallbackQuery, state: FSMContext):
                 document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
                 await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
             if selected_task[0]['marks'] != None:
-                await callback.message.answer(f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания: {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_teacher_check_passed_task.markup)
+                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания: {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_teacher_check_passed_task.markup)
             else:
-                await callback.message.answer(f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания: {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_teacher_check_passed_task.markup)
+                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания: {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_teacher_check_passed_task.markup)
 
         else:
             await callback.message.answer("Задание не найдено.")
@@ -506,23 +524,23 @@ async def catalog22(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data == 'set_marks_pased_task')
-async def catalog31(callback: CallbackQuery, state: FSMContext):
+async def catalog23(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
         await callback.message.edit_text('Выберите оценку', reply_markup=keyboard_choice_marks.markup)
         await state.update_data(callback_data='set_marks_pased_task')
     except Exception as e:
-        logging.error(f"Ошибка в функции catalog31: {e}")
+        logging.error(f"Ошибка в функции catalog23: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data[:4] == 'mark')
-async def catalog23(callback: CallbackQuery, state: FSMContext, bot: Bot):
+async def catalog24(callback: CallbackQuery, state: FSMContext, bot: Bot):
     try:
         await callback.answer()
         set_marks((await state.get_data())['selected_task_id'], callback.data[4])
         await callback.message.answer('Оценка установлена')
     except Exception as e:
-        logging.error(f"Ошибка в функции catalog23: {e}")
+        logging.error(f"Ошибка в функции catalog24: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
     try:
         await callback.answer()
@@ -539,27 +557,27 @@ async def catalog23(callback: CallbackQuery, state: FSMContext, bot: Bot):
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data == 'set_passed')
-async def catalog24(callback: CallbackQuery, state: FSMContext):
+async def catalog25(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
         await callback.message.answer('Вы уверены?', reply_markup=keyboard_catalog_teacher_pass_confirm.markup)
     except Exception as e:
-        logging.error(f"Ошибка в функции catalog24: {e}")
+        logging.error(f"Ошибка в функции catalog25: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data == 'confirm')
-async def catalog25(callback: CallbackQuery, state: FSMContext, bot: Bot):
+async def catalog26(callback: CallbackQuery, state: FSMContext, bot: Bot):
     try:
         await callback.answer()
         data = set_pass((await state.get_data())['selected_task_id'])[0]
         await callback.message.answer('Задание отмечено как завершенное', reply_markup=keyboard_teacher_start.markup)
         await bot.send_message(data['id_student'], f'Вам выставили оценку {data["marks"]} по дз на {data["deadline"]}')
     except Exception as e:
-        logging.error(f"Ошибка в функции catalog25: {e}")
+        logging.error(f"Ошибка в функции catalog26: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data == 'cancel')
-async def catalog26(callback: CallbackQuery, state: FSMContext, bot: Bot):
+async def catalog27(callback: CallbackQuery, state: FSMContext, bot: Bot):
     try:
         await callback.answer()
         id_student = (await state.get_data())['id_student']
@@ -570,11 +588,11 @@ async def catalog26(callback: CallbackQuery, state: FSMContext, bot: Bot):
         callback_data = (await state.get_data())['callback_data']
         await special_function_teacher(callback, state, bot, selected_task, callback_data)
     except Exception as e:
-        logging.error(f"Ошибка в функции catalog26: {e}")
+        logging.error(f"Ошибка в функции catalog27: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data == 'view_check_tasks_student')
-async def catalog27(callback: CallbackQuery, state: FSMContext):
+async def catalog28(callback: CallbackQuery, state: FSMContext):
     try:
         student = Student()
         student.get_students_tasks(callback.from_user.id)
@@ -585,12 +603,12 @@ async def catalog27(callback: CallbackQuery, state: FSMContext):
         else:
             await callback.message.answer("У вас нет заданий на проверке")
     except Exception as e:
-        logging.error(f"Ошибка в функции catalog27: {e}")
+        logging.error(f"Ошибка в функции catalog28: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 
 @router_catalog.callback_query(F.data[:16] == 'callback_datatsp', Catalog.fifth)
-async def catalog28(callback: CallbackQuery, state: FSMContext):
+async def catalog29(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
         task_id = int(callback.data.split('_')[3])
@@ -616,11 +634,11 @@ async def catalog28(callback: CallbackQuery, state: FSMContext):
         else:
             await callback.message.answer("Задание не найдено.")
     except Exception as e:
-        logging.error(f"Ошибка в функции catalog28: {e}")
+        logging.error(f"Ошибка в функции catalog29: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data == 'view_check_tasks_teacher')
-async def catalog29(callback: CallbackQuery, state: FSMContext):
+async def catalog30(callback: CallbackQuery, state: FSMContext):
     try:
         id_student = (await state.get_data())['id_student']
         student = Student()
@@ -632,11 +650,11 @@ async def catalog29(callback: CallbackQuery, state: FSMContext):
         else:
             await callback.message.answer("Нет заданий на проверке.")
     except Exception as e:
-        logging.error(f"Ошибка в функции catalog29: {e}")
+        logging.error(f"Ошибка в функции catalog30: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data[:16] == 'callback_datatsp', Catalog.sixth)
-async def catalog30(callback: CallbackQuery, state: FSMContext):
+async def catalog31(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
         id_student = (await state.get_data())['id_student']
@@ -655,12 +673,67 @@ async def catalog30(callback: CallbackQuery, state: FSMContext):
                 document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
                 await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
             if selected_task[0]['marks'] != None:
-                await callback.message.answer(f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания: {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_teacher_check.markup)
+                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания: {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_teacher_check.markup)
             else:
-                await callback.message.answer(f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания: {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_teacher_check.markup)
+                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания: {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_teacher_check.markup)
 
         else:
             await callback.message.answer("Задание не найдено.")
     except Exception as e:
-        logging.error(f"Ошибка в функции catalog30: {e}")
+        logging.error(f"Ошибка в функции catalog31: {e}")
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+
+@router_catalog.callback_query(F.data == 'change_deadline')
+async def catalog32(callback: CallbackQuery, state: FSMContext):
+    try:
+        await callback.answer()
+        await callback.message.edit_text('Выберите новый дедлайн', inline_message_id=callback.inline_message_id, reply_markup = await SimpleCalendar().start_calendar())
+        await state.set_state(Catalog.seventh)
+    except Exception as e:
+        logging.error(f"Ошибка в функции catalog32: {e}")
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+@router_catalog.callback_query(SimpleCalendarCallback.filter(), Catalog.seventh)
+async def catalog33(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext):
+    try:
+        if callback_data.act == simple_calendar.SimpleCalAct.cancel:
+            await special_function_callback_not_callback(callback, state)
+        else:
+            calendar = SimpleCalendar()
+            selected, date = await calendar.process_selection(callback, callback_data)
+
+            if selected:
+                await state.update_data(homework_date=str(date))
+                await callback.answer()
+                await callback.message.edit_text("Выберите дедлайн", reply_markup=keyboard_time_selection.markup)
+    except Exception as e:
+        logging.error(f"Ошибка в функции catalog33: {e}")
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+@router_catalog.callback_query(F.data == 'cancel_time_selection', Catalog.seventh)
+async def catalog34(callback: CallbackQuery, state: FSMContext):
+    try:
+        await callback.answer()
+        await callback.message.edit_text('Выберите дату сдачи', inline_message_id=callback.inline_message_id, reply_markup = await SimpleCalendar().start_calendar())
+    except Exception as e:
+        logging.error(f"Ошибка в функции catalog34: {e}")
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+
+@router_catalog.callback_query(F.data[:4] == 'time', Catalog.seventh)
+async def catalog35(callback: CallbackQuery, state: FSMContext):
+    try:
+        hour = callback.data.split('_')[1]
+        data = await state.get_data()
+        date_str = data['homework_date']
+        date_with_time = f"{date_str.split(' ')[0]} {hour}:00:00"
+
+        update_deadline(data['selected_task_id'], date_with_time)
+        
+        await callback.answer(f"Время обновлено: {date_with_time}")
+        await special_function_callback_not_callback(callback, state)
+        await state.set_state(Catalog.seventh)
+    except Exception as e:
+        logging.error(f"Ошибка в функции catalog35: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')

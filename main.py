@@ -37,8 +37,6 @@ async def main():
     # Запускаем планировщик бекапа в фоне
     asyncio.create_task(backup_scheduler(bot))
     asyncio.create_task(create_backup(bot))
-    await send_overdue_homework_notifications(bot)
-
 
     scheduler.add_job(
         send_reminder_3d,

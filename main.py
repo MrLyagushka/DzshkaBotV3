@@ -14,7 +14,7 @@ from handlers.catalog import router_catalog
 from handlers.main_keyboard import router_main_keyboard
 from handlers.tutorial import router_tutorial
 
-from utils.reminders import send_reminder_3d, send_reminder_1d
+from utils.reminders import send_reminder_3d, send_reminder_1d, send_overdue_homework_notifications
 from utils.backup import backup_scheduler, create_backup
 
 bot = Bot(token=BOT_TOKEN)
@@ -37,6 +37,8 @@ async def main():
     # Запускаем планировщик бекапа в фоне
     asyncio.create_task(backup_scheduler(bot))
     asyncio.create_task(create_backup(bot))
+    await send_overdue_homework_notifications(bot)
+
 
     scheduler.add_job(
         send_reminder_3d,
@@ -48,13 +50,19 @@ async def main():
     scheduler.add_job(
         send_reminder_1d,
         "cron",
-        hour=9, minute=0,
+        hour=9, minute=5,
         args=[bot],
         id=f"hw_reminder_1d"
     )
-
+    scheduler.add_job(
+        send_overdue_homework_notifications,
+        "cron",
+        hour=9, minute=10,
+        args=[bot],
+        id=f"hw_reminder_exired"
+    )
     scheduler.start()
-    
+
     await dp.start_polling(bot)
 
 

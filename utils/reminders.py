@@ -42,3 +42,32 @@ async def _send_reminder(bot: Bot, days_before: int, message_suffix: str):
                 logging.error(f"Не удалось отправить напоминание в чат {hw['id_student']}: {e}")
     except Exception as db_err:
         logging.error(f"Ошибка при получении ДЗ из БД: {db_err}")
+
+
+async def send_overdue_homework_notifications(bot: Bot):
+    """Отправляет уведомления о просроченных домашних заданиях (дедлайн < сегодня)"""
+    today = date.today()  # предполагается, что сервер в часовом поясе Москвы
+
+    try:
+        homework_list = await get_task()
+        for hw in homework_list:
+            try:
+                deadline_str = hw['deadline'].split()[0]  # YYYY-MM-DD
+                deadline_date = date.fromisoformat(deadline_str)
+
+                if deadline_date < today:
+                    await bot.send_message(
+                        chat_id=hw["id_student"],
+                        text=(
+                            "⚠️ <b>Просроченное домашнее задание</b>\n\n"
+                            f"Вы не сдали задание на {hw['deadline']}. "
+                            "Пожалуйста, сдайте задание как можно скорее."
+                        ),
+                        parse_mode="HTML"
+                    )
+            except ValueError:
+                logging.warning(f"Некорректный формат даты в ДЗ: {hw['deadline']}")
+            except Exception as e:
+                logging.error(f"Не удалось отправить уведомление о просрочке в чат {hw['id_student']}: {e}")
+    except Exception as db_err:
+        logging.error(f"Ошибка при получении ДЗ из БД: {db_err}")

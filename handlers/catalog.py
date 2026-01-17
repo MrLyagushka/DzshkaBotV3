@@ -11,7 +11,7 @@ from handlers.start import Start
 from keyboards.catalog import keyboard_catalog, keyboard_catalog_teacher_check, keyboard_catalog_teacher_pass_confirm, keyboard_choice_marks, keyboard_catalog_student, keyboard_catalog_teacher, keyboard_catalog_student_pass, keyboard_catalog_student_pass_confirm, keyboard_catalog_teacher_check_passed_task
 from keyboards.start import keyboard_teacher_start, keyboard_student_start
 from keyboards.homework import keyboard_time_selection
-from utils.catalog import add_student, save_answer_task, get_id_teacher, set_pass, set_marks, update_deadline
+from utils.catalog import add_student, save_answer_task, get_id_teacher, set_pass, set_marks, update_deadline, return_goback, get_date
 from utils.users import Student, Teacher
 from utils.template import DinamicKeyboard
 from utils.images_to_pdf import process_album_after_timeout
@@ -24,6 +24,7 @@ class Catalog(StatesGroup):
     fifth = State()
     sixth = State()
     seventh = State()
+    eight = State()
 
 router_catalog = Router()
 
@@ -561,6 +562,7 @@ async def catalog25(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
         await callback.message.answer('Вы уверены?', reply_markup=keyboard_catalog_teacher_pass_confirm.markup)
+        await state.update_data(callback_data='set_marks')
     except Exception as e:
         logging.error(f"Ошибка в функции catalog25: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -693,6 +695,7 @@ async def catalog32(callback: CallbackQuery, state: FSMContext):
     except Exception as e:
         logging.error(f"Ошибка в функции catalog32: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+        
 
 @router_catalog.callback_query(SimpleCalendarCallback.filter(), Catalog.seventh)
 async def catalog33(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext):
@@ -737,3 +740,32 @@ async def catalog35(callback: CallbackQuery, state: FSMContext):
     except Exception as e:
         logging.error(f"Ошибка в функции catalog35: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+@router_catalog.callback_query(F.data == 'return')
+async def catalog36(callback: CallbackQuery, state: FSMContext):
+    try:
+        data = await state.get_data()
+        
+        await callback.answer()
+        await callback.message.edit_text('Пришлите коментарий для отправки ученику или None, что бы отменить')
+        await state.set_state(Catalog.eight)
+    except Exception as e:
+        logging.error(f"Ошибка в функции catalog36: {e}")
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+        
+@router_catalog.message(Catalog.eight)
+async def catalog37(message: Message, state: FSMContext, bot: Bot):
+    try:
+        data = await state.get_data()
+        date = get_date(data['selected_task_id'])[0]['deadline']
+        text = message.text
+        if text == 'None':
+            await message.answer("Операция отменена", reply_markup=keyboard_teacher_start.markup)
+        else:
+            await message.answer("Задание отправлено на дорешку, комментарий отправлен ученику", reply_markup=keyboard_teacher_start.markup)
+            return_goback(data['selected_task_id'])
+            await bot.send_message(chat_id=data['id_student'], text=f"Задание на {date} было отправлено на дорешку с комментарием преподавателя:\n\n{text}")
+            await state.set_state(Catalog.seventh)
+    except Exception as e:
+        logging.error(f"Ошибка в функции catalog37: {e}")
+        await message.answer('❌Ошибка, обратитесь в поддержку')

@@ -70,3 +70,24 @@ def update_deadline(id_task: int, new_deadline: str):
     except Exception as e:
         logging.error(f"Ошибка при выполнении функции update_deadline: {e}")
         return None
+    
+def return_goback(id_task: int):
+    try:
+        with connect(PATH_TO_DB_TASK) as db:
+            db.row_factory = Row
+            cursor = db.cursor()
+            cursor.execute("UPDATE task SET is_active = ? WHERE id = ?", (1, id_task,))
+    except Exception as e:
+        logging.error(f"Ошибка при выполнении функции return_goback: {e}")
+        return None
+    
+def get_date(id_task: int):
+    try:
+        with connect(PATH_TO_DB_TASK) as db:
+            db.row_factory = Row
+            cursor = db.cursor()
+            cursor.execute("SELECT deadline FROM task WHERE id = ?", (id_task,))
+            return cursor.fetchall()
+    except Exception as e:
+        logging.error(f"Ошибка при выполнении функции get_date: {e}")
+        return None

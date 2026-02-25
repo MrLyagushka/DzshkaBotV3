@@ -91,3 +91,17 @@ def get_date(id_task: int):
     except Exception as e:
         logging.error(f"Ошибка при выполнении функции get_date: {e}")
         return None
+    
+def get_is_active(id_task: int):
+    try:
+        with connect(PATH_TO_DB_TASK) as db:
+            db.row_factory = Row
+            cursor = db.cursor()
+            cursor.execute("SELECT is_active FROM task WHERE id = ?", (id_task,))
+            result = cursor.fetchone()
+            if result:
+                return result['is_active']
+            return None
+    except Exception as e:
+        logging.error(f"Ошибка при выполнении функции get_is_active: {e}")
+        return None

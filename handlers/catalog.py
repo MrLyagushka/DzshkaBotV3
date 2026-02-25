@@ -39,7 +39,7 @@ async def special_function_callback_not_callback(callback: CallbackQuery, state:
         if selected_task[0]['file_name'] != None:
             document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
             await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
-        await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}", reply_markup=keyboard_catalog_teacher_check.markup)
+        await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}", reply_markup=keyboard_catalog_teacher_check.markup)
     else:
         await callback.message.answer("Задание не найдено.")
 
@@ -54,7 +54,7 @@ async def special_function(message: Message, state: FSMContext):
         if selected_task[0]['file_name'] != None:
             document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
             await message.answer_document(document=document_to_send, caption='Файл к заданию')
-        await message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}", reply_markup=keyboard_catalog_student_pass.markup)
+        await message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}", reply_markup=keyboard_catalog_student_pass.markup)
     else:
         await message.answer("Задание не найдено.")
 
@@ -69,7 +69,7 @@ async def special_function_callback(callback: CallbackQuery, state: FSMContext):
         if selected_task[0]['file_name'] != None:
             document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
             await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
-        await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}", reply_markup=keyboard_catalog_student_pass.markup)
+        await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}", reply_markup=keyboard_catalog_student_pass.markup)
     else:
         await callback.message.answer("Задание не найдено.")
 
@@ -87,14 +87,14 @@ async def special_function_teacher(callback: CallbackQuery, state: FSMContext, b
             if callback_data == 'set_marks_pased_task':
                 data = set_pass((await state.get_data())['selected_task_id'])[0]
                 await bot.send_message(data['id_student'], f'Вам изменили оценку на {data["marks"]} по дз на {data["deadline"]}')
-                await callback.message.answer(f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_teacher_check_passed_task.markup)
+                await callback.message.answer(f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_teacher_check_passed_task.markup)
             elif callback_data == 'set_marks':
-                await callback.message.answer(f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_teacher_check.markup)
+                await callback.message.answer(f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_teacher_check.markup)
         else:
             if callback_data == 'set_marks_pased_task':
-                await callback.message.answer(f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_teacher_check_passed_task.markup)
+                await callback.message.answer(f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_teacher_check_passed_task.markup)
             elif callback_data == 'set_marks':
-                await callback.message.answer(f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_teacher_check.markup)
+                await callback.message.answer(f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_teacher_check.markup)
     else:
         await callback.message.answer("Задание не найдено.")
 
@@ -171,7 +171,7 @@ async def catalog6(callback: CallbackQuery, state: FSMContext):
             if selected_task[0]['file_name'] != None:
                 document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
                 await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
-            await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}", reply_markup=keyboard_catalog_student_pass.markup)
+            await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}", reply_markup=keyboard_catalog_student_pass.markup)
             await state.update_data(added_text=None, file_name=None, file_type=None, file_data=None)
         else:
             await callback.message.answer("Задание не найдено.")
@@ -394,9 +394,9 @@ async def catalog15(callback: CallbackQuery, state: FSMContext):
                 document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
                 await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
             if selected_task[0]['marks'] != None:
-                await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\n\nОценка: {selected_task[0]['marks']}")
+                await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\n\nОценка: {selected_task[0]['marks']}")
             else:
-                await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}")
+                await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}")
 
             await state.update_data(added_text=None, file_name=None, file_type=None, file_data=None)
         else:
@@ -463,7 +463,7 @@ async def catalog19(callback: CallbackQuery, state: FSMContext):
             if selected_task[0]['file_name'] != None:
                 document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
                 await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
-            await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}", reply_markup=keyboard_catalog_teacher_check.markup)
+            await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}", reply_markup=keyboard_catalog_teacher_check.markup)
         else:
             await callback.message.answer("Задание не найдено.")
     except Exception as e:
@@ -506,9 +506,9 @@ async def catalog21(callback: CallbackQuery, state: FSMContext):
                 document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
                 await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
             if selected_task[0]['marks'] != None:
-                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_teacher_check_passed_task.markup)
+                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_teacher_check_passed_task.markup)
             else:
-                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_teacher_check_passed_task.markup)
+                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_teacher_check_passed_task.markup)
 
         else:
             await callback.message.answer("Задание не найдено.")
@@ -633,9 +633,9 @@ async def catalog29(callback: CallbackQuery, state: FSMContext):
                 document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
                 await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
             if selected_task[0]['marks'] != None:
-                await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}")
+                await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}")
             else:
-                await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}")
+                await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}")
 
             await state.update_data(added_text=None, file_name=None, file_type=None, file_data=None)
         else:
@@ -680,9 +680,9 @@ async def catalog31(callback: CallbackQuery, state: FSMContext):
                 document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
                 await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
             if selected_task[0]['marks'] != None:
-                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_teacher_check.markup)
+                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_teacher_check.markup)
             else:
-                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n {selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_teacher_check.markup)
+                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_teacher_check.markup)
 
         else:
             await callback.message.answer("Задание не найдено.")

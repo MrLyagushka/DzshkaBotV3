@@ -412,7 +412,7 @@ async def catalog16(callback: CallbackQuery, state: FSMContext):
         teacher = Teacher()
         teacher.get_statistics(callback.from_user.id)
         if teacher.students_info:
-            await callback.message.answer('Выберите ученика', reply_markup=DinamicKeyboard(1,3,'no',0,f'st_{callback.from_user.id}').generate_keyboard())
+            await callback.message.answer('Выберите ученика', reply_markup=DinamicKeyboard(2,3,'no',0,f'st_{callback.from_user.id}').generate_keyboard())
             await state.set_state(Catalog.fourth)
         else:
             await callback.message.answer('У вас нет учеников. Прикрепите ученика через "Список учеников"->"Добавить ученика"', reply_markup=keyboard_teacher_start.markup)

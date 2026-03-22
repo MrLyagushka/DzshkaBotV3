@@ -29,7 +29,7 @@ async def homework0(message: Message, state: FSMContext):
         teacher = Teacher()
         teacher.get_statistics(message.from_user.id)
         if teacher.students_info:
-            await message.answer('Выберите ученика для выдачи задания', reply_markup=DinamicKeyboard(1,3,'no',0,f'st_{message.from_user.id}').generate_keyboard())
+            await message.answer('Выберите ученика для выдачи задания', reply_markup=DinamicKeyboard(2,3,'no',0,f'st_{message.from_user.id}').generate_keyboard())
             await state.set_state(Homework.first)
         else:
             await message.answer('У вас нет учеников. Прикрепите ученика через "Список учеников"->"Добавить ученика"', reply_markup=keyboard_teacher_start.markup)

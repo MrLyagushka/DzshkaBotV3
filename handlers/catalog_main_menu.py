@@ -1,17 +1,17 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 import logging
 
-from keyboards.start import keyboard_teacher_start
-from utils.users import Teacher
+from keyboards.start import keyboard_teacher_start, keyboard_catalog_student, keyboard_catalog_student_pass
+from utils.users import Teacher, Student
 from utils.template import DinamicKeyboard
+from utils.catalog import add_student
 
 router_catalog_main_menu = Router()
 
 class CatalogMainMenu(StatesGroup):
-    list_students = State()
     add_student = State()
 
 
@@ -23,7 +23,7 @@ async def catalog16(callback: CallbackQuery, state: FSMContext):
         teacher.get_statistics(callback.from_user.id)
         if teacher.students_info:
             await callback.message.answer('Выберите ученика', reply_markup=DinamicKeyboard(2,3,'no',0,f'st_{callback.from_user.id}').generate_keyboard())
-            await state.set_state(CatalogMainMenu.list_students)
+
         else:
             await callback.message.answer('У вас нет учеников. Прикрепите ученика через "Список учеников"->"Добавить ученика"', reply_markup=keyboard_teacher_start.markup)
     
@@ -49,3 +49,37 @@ async def catalog2(callback: CallbackQuery, state: FSMContext):
     except Exception as e:
         logging.error(f"Ошибка в функции catalog2: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+@router_catalog_main_menu.message(CatalogMainMenu.add_student)
+async def catalog3(message: Message, state: FSMContext):
+    try:
+        int(message.text)
+    except Exception as e:
+        await message.answer('❌ID ученика должен быть числом, попробуйте еще раз', reply_markup=keyboard_teacher_start.markup)
+        return
+    try:
+        student_id = int(message.text)
+        is_exists = Student()
+        is_exists.get_statistics(student_id)
+        add_student(student_id, message.from_user.id)
+        student = Student()
+        student.get_statistics(student_id)
+        name = student.name_student['name']
+    except Exception as e:
+        await message.answer('❌Ученик с таким ID не найден, попробуйте еще раз', reply_markup=keyboard_teacher_start.markup)
+        return
+    try:
+        await message.answer(f'Ученик {name} успешно добавлен!', reply_markup=keyboard_teacher_start.markup)
+        await state.clear()
+    except Exception as e:
+        logging.error(f"Ошибка в функции catalog3: {e}")
+        await message.answer('❌Ошибка, обратитесь в поддержку')
+
+@router_catalog_main_menu.message(F.text == 'Список заданий')
+async def catalog4(message: Message):
+    try:
+        await message.answer('Выберите', reply_markup=keyboard_catalog_student.markup)
+    except Exception as e:
+        logging.error(f"Ошибка в функции catalog4: {e}")
+        await message.answer('❌Ошибка, обратитесь в поддержку')
+

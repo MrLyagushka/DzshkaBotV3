@@ -13,6 +13,8 @@ from handlers.service_handlers import router_service_handlers
 from handlers.catalog import router_catalog
 from handlers.main_keyboard import router_main_keyboard
 from handlers.tutorial import router_tutorial
+from handlers.catalog_main_menu import router_catalog_main_menu
+from handlers.catalog_tasks_list import router_catalog_tasks_list
 
 from utils.reminders import send_reminder_3d, send_reminder_1d, send_overdue_homework_notifications
 from utils.backup import backup_scheduler, create_backup
@@ -31,7 +33,9 @@ async def main():
         router_profile,
         router_homework,
         router_catalog,
-        router_service_handlers
+        router_service_handlers,
+        router_catalog_main_menu,
+        router_catalog_tasks_list
     )
 
     # Запускаем планировщик бекапа в фоне

@@ -98,15 +98,6 @@ async def special_function_teacher(callback: CallbackQuery, state: FSMContext, b
     else:
         await callback.message.answer("Задание не найдено.")
 
-@router_catalog.callback_query(F.data == 'add_student')
-async def catalog2(callback: CallbackQuery, state: FSMContext):
-    try:
-        await callback.answer()
-        await callback.message.answer('Введите id ученика для добавления')
-        await state.set_state(Catalog.first)
-    except Exception as e:
-        logging.error(f"Ошибка в функции catalog2: {e}")
-        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.message(Catalog.first)
 async def catalog3(message: Message, state: FSMContext):
@@ -140,21 +131,6 @@ async def catalog4(message: Message):
     except Exception as e:
         logging.error(f"Ошибка в функции catalog4: {e}")
         await message.answer('❌Ошибка, обратитесь в поддержку')
-
-@router_catalog.callback_query(F.data == 'view_active_tasks_student')
-async def catalog5(callback: CallbackQuery, state: FSMContext):
-    try:
-        student = Student()
-        student.get_students_tasks(callback.from_user.id)
-        await callback.answer()
-        if [x for x in student.homework_active if x['is_active'] == 1]:
-            await callback.message.answer(f"Ваши активные задания", reply_markup=DinamicKeyboard(1,3,'no',0,f'tsa_{callback.from_user.id}').generate_keyboard())
-            await state.set_state(Catalog.fifth)
-        else:
-            await callback.message.answer("У вас нет активных заданий")
-    except Exception as e:
-        logging.error(f"Ошибка в функции catalog5: {e}")
-        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data[:16] == 'callback_datatsa', Catalog.fifth)
 async def catalog6(callback: CallbackQuery, state: FSMContext):
@@ -358,22 +334,6 @@ async def catalog13(callback: CallbackQuery, state: FSMContext):
         logging.error(f"Ошибка в функции catalog13: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_catalog.callback_query(F.data == 'view_passed_tasks_student')
-async def catalog14(callback: CallbackQuery, state: FSMContext):
-    try:
-        student = Student()
-        student.get_students_tasks(callback.from_user.id)
-        await callback.answer()
-        if [x for x in student.homework_active if x['is_active'] == 0]:
-            await callback.message.answer(f"Ваши завершенные задания", reply_markup=DinamicKeyboard(1,3,'no',0,f'tsd_{callback.from_user.id}').generate_keyboard())
-            await state.set_state(Catalog.fifth)
-
-        else:
-            await callback.message.answer("У вас нет завершенных заданий")
-    except Exception as e:
-        logging.error(f"Ошибка в функции catalog14: {e}")
-        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
-
 
 @router_catalog.callback_query(F.data[:16] == 'callback_datatsd', Catalog.fifth)
 async def catalog15(callback: CallbackQuery, state: FSMContext):
@@ -405,21 +365,6 @@ async def catalog15(callback: CallbackQuery, state: FSMContext):
         logging.error(f"Ошибка в функции catalog15: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_catalog.callback_query(F.data == 'list_students')
-async def catalog16(callback: CallbackQuery, state: FSMContext):
-    try:
-        await callback.answer()
-        teacher = Teacher()
-        teacher.get_statistics(callback.from_user.id)
-        if teacher.students_info:
-            await callback.message.answer('Выберите ученика', reply_markup=DinamicKeyboard(2,3,'no',0,f'st_{callback.from_user.id}').generate_keyboard())
-            await state.set_state(Catalog.fourth)
-        else:
-            await callback.message.answer('У вас нет учеников. Прикрепите ученика через "Список учеников"->"Добавить ученика"', reply_markup=keyboard_teacher_start.markup)
-    
-    except Exception as e:
-        logging.error(f"Ошибка в функции catalog16: {e}")
-        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data[:16] == 'callback_data_st')
 async def catalog17(callback: CallbackQuery, state: FSMContext):
@@ -431,21 +376,6 @@ async def catalog17(callback: CallbackQuery, state: FSMContext):
         logging.error(f"Ошибка в функции catalog17: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_catalog.callback_query(F.data == 'view_active_tasks_teacher')
-async def catalog18(callback: CallbackQuery, state: FSMContext):
-    try:
-        id_student = (await state.get_data())['id_student']
-        student = Student()
-        student.get_students_tasks(id_student)
-        await callback.answer()
-        if [x for x in student.homework_active if x['is_active'] == 1]:
-            await callback.message.answer(f"Активные задания", reply_markup=DinamicKeyboard(1,3,'no',0,f'tsa_{id_student}').generate_keyboard())
-            await state.set_state(Catalog.sixth)
-        else:
-            await callback.message.answer("Нет активных заданий.")
-    except Exception as e:
-        logging.error(f"Ошибка в функции catalog18: {e}")
-        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data[:16] == 'callback_datatsa', Catalog.sixth)
 async def catalog19(callback: CallbackQuery, state: FSMContext):
@@ -470,21 +400,6 @@ async def catalog19(callback: CallbackQuery, state: FSMContext):
         logging.error(f"Ошибка в функции catalog19: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_catalog.callback_query(F.data == 'view_passed_tasks_teacher')
-async def catalog20(callback: CallbackQuery, state: FSMContext):
-    try:
-        id_student = (await state.get_data())['id_student']
-        student = Student()
-        student.get_students_tasks(id_student)
-        await callback.answer()
-        if [x for x in student.homework_active if x['is_active'] == 0]:
-            await callback.message.answer(f"Завершенные задания", reply_markup=DinamicKeyboard(1,3,'no',0,f'tsd_{id_student}').generate_keyboard())
-            await state.set_state(Catalog.sixth)
-        else:
-            await callback.message.answer("Нет завершенных заданий.")
-    except Exception as e:
-        logging.error(f"Ошибка в функции catalog20: {e}")
-        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data[:16] == 'callback_datatsd', Catalog.sixth)
 async def catalog21(callback: CallbackQuery, state: FSMContext):
@@ -598,21 +513,6 @@ async def catalog27(callback: CallbackQuery, state: FSMContext, bot: Bot):
         logging.error(f"Ошибка в функции catalog27: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_catalog.callback_query(F.data == 'view_check_tasks_student')
-async def catalog28(callback: CallbackQuery, state: FSMContext):
-    try:
-        student = Student()
-        student.get_students_tasks(callback.from_user.id)
-        await callback.answer()
-        if [x for x in student.homework_active if x['is_active'] == -1]:
-            await callback.message.answer(f"Задания на проверке", reply_markup=DinamicKeyboard(1,3,'no',0,f'tsp_{callback.from_user.id}').generate_keyboard())
-            await state.set_state(Catalog.fifth)
-        else:
-            await callback.message.answer("У вас нет заданий на проверке")
-    except Exception as e:
-        logging.error(f"Ошибка в функции catalog28: {e}")
-        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
-
 
 @router_catalog.callback_query(F.data[:16] == 'callback_datatsp', Catalog.fifth)
 async def catalog29(callback: CallbackQuery, state: FSMContext):
@@ -644,21 +544,6 @@ async def catalog29(callback: CallbackQuery, state: FSMContext):
         logging.error(f"Ошибка в функции catalog29: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_catalog.callback_query(F.data == 'view_check_tasks_teacher')
-async def catalog30(callback: CallbackQuery, state: FSMContext):
-    try:
-        id_student = (await state.get_data())['id_student']
-        student = Student()
-        student.get_students_tasks(id_student)
-        await callback.answer()
-        if [x for x in student.homework_active if x['is_active'] == -1]:
-            await callback.message.answer(f"Задания на проверке", reply_markup=DinamicKeyboard(1,3,'no',0,f'tsp_{id_student}').generate_keyboard())
-            await state.set_state(Catalog.sixth)
-        else:
-            await callback.message.answer("Нет заданий на проверке.")
-    except Exception as e:
-        logging.error(f"Ошибка в функции catalog30: {e}")
-        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog.callback_query(F.data[:16] == 'callback_datatsp', Catalog.sixth)
 async def catalog31(callback: CallbackQuery, state: FSMContext):

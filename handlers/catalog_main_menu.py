@@ -4,7 +4,9 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 import logging
 
-from keyboards.start import keyboard_teacher_start, keyboard_catalog_student, keyboard_catalog_student_pass
+from keyboards.start import keyboard_teacher_start
+from keyboards.catalog_tasks_list import keyboard_catalog_tasks_list_student_pass
+from keyboards.catalog_main_menu import keyboard_catalog_main_menu
 from utils.users import Teacher, Student
 from utils.template import DinamicKeyboard
 from utils.catalog import add_student
@@ -78,7 +80,7 @@ async def catalog3(message: Message, state: FSMContext):
 @router_catalog_main_menu.message(F.text == 'Список заданий')
 async def catalog4(message: Message):
     try:
-        await message.answer('Выберите', reply_markup=keyboard_catalog_student.markup)
+        await message.answer('Выберите', reply_markup=keyboard_catalog_tasks_list_student_pass.markup)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog4: {e}")
         await message.answer('❌Ошибка, обратитесь в поддержку')

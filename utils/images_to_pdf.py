@@ -9,7 +9,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 
-from keyboards.catalog import keyboard_catalog_student_pass
+from keyboards.catalog_tasks_list import keyboard_catalog_tasks_list_student_pass
 from keyboards.homework import keyboard_homework
 from utils.users import Teacher, Student
 
@@ -25,7 +25,7 @@ async def special_function(message: Message, state: FSMContext):
         if selected_task[0]['file_name'] != None:
             document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
             await message.answer_document(document=document_to_send, caption='Файл к заданию')
-        await message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}", reply_markup=keyboard_catalog_student_pass.markup)
+        await message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}", reply_markup=keyboard_catalog_tasks_list_student_pass.markup)
     else:
         await message.answer("Задание не найдено.")
 

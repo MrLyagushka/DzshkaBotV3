@@ -109,6 +109,35 @@ users — `PATH_TO_DB_USERS`, tasks — `PATH_TO_DB_TASK`). Ключевые ф�
 
 Критерий готовности: прогон §8 сценариев S3–S6 без «залипания» в состояниях.
 
+✅ **СТАТУС (выполнено):**
+- `CatalogTasksList.fifth` удалён; вместо него экран `view_check_tasks_student`, который ставит
+  `catalog28`; фильтры просмотра задания переведены по правилу «состояние = экран родителя»:
+  tsa→`view_active_tasks_*`, tsd→`view_passed_tasks_*`, tsp→`view_check_tasks_*` (student/teacher
+  отдельно) — баг «молча не работающих» кнопок «Задания на проверке» закрыт.
+- Новые экраны-состояния: `confirm_pass` (сдача учеником), `confirm_set_passed` (отметка «решено»
+  учителем, каталог), `set_mark` (ожидание нажатия 2/3/4/5), `change_deadline` (дедлайн),
+  `add_file_done` (служебный, сбор альбома фото), `Homework.confirm_send` (подтверждение выдачи).
+- Общая клавиатура подтверждения `keyboard_catalog_tasks_list_confirm_generic` ('confirm'/'cancel')
+  используется во всех трёх экранах; колбэки различаются ТОЛЬКО state-фильтром, конфликт
+  «живой кнопки из прошлого сообщения» устранён. Старые 'confirm_send'/'confirm_cancel' в homework
+  заменены на те же 'confirm'/'cancel' + `Homework.confirm_send`.
+- Хелпер `reset_flow(state)` (`handlers/catalog_tasks_list.py`): `state.clear()` + обнуление
+  черновиков (added_text/file_*/selected_task_id/id_student); вызывается на каждом терминальном
+  шаге и в ветках except (сдача задания catalog12, оценки catalog24, подтверждение/отмена
+  catalog25–27, дедлайн catalog35/37, отмены confirm_pass/confirm_set_passed/set_mark/
+  change_deadline; homework9/10/11 — `state.clear()` напрямую).
+- Точки входа в новые флоу делают сброс перед входом; message-хендлеры ввода текста/файла
+  (`add_text_to_task`, загрузка файлов) требуют состояние экрана и закрывают его после приёма —
+  обычный текст больше не перехватывается старым экраном.
+- Проверки сессий в homework11 (`student_id is None` → «Сессия устарела» + clear) и catalog12
+  (`selected_task_id is None` → аналогично + reset_flow).
+- Фильтры времени/оценок типизированы: `TimeCb.filter()` (homework7, catalog35),
+  `MarkCb.filter()` (catalog24) — старых срезов `F.data[:4]=='time'` / `data[4]` не осталось.
+
+Проверено: `python -m py_compile` всех файлов; импорт `main.py` и сборка Dispatcher (8 роутеров);
+round-trip и negative-тесты фильтров MarkCb/TimeCb/StudentCb/TaskCb (форматы `mark5`, `time_18`,
+`callback_data_st_Иван_5` отклоняются).
+
 ---
 
 ## 3. Данные FSM ≠ права доступа: проверки владельца (главная часть «доступа между сообщениями»)

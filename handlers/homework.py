@@ -9,7 +9,7 @@ from handlers.start import Start
 from keyboards.homework import keyboard_homework, keyboard_homework_confirmation, keyboard_time_selection, keyboard_homework_add_file
 from keyboards.start import keyboard_teacher_start
 from utils.template import DinamicKeyboard
-from utils.callbacks import StudentCb
+from utils.callbacks import StudentCb, TimeCb
 from utils.homework import save_task
 from utils.users import Teacher
 from utils.images_to_pdf import process_album_after_timeout, process_album_after_timeout2
@@ -21,6 +21,10 @@ class Homework(StatesGroup):
     third = State()
     fourth = State()
     fifth = State()
+    # Экран «Подтвердите отправку задания» (§2): общая клавиатура confirm/cancel,
+    # хендлеры различают экран именно по этому состоянию — колбэк 'confirm' из
+    # каталога (confirm_pass/confirm_set_passed) сюда не матчится.
+    confirm_send = State()
 
 router_homework = Router()
 
@@ -268,10 +272,10 @@ async def homework6(callback: CallbackQuery, callback_data: SimpleCalendarCallba
         logging.error(f"Ошибка в функции homework6: {e}")
         await callback.message.answer("❌ Ошибка, обратитесь в поддержку")
 
-@router_homework.callback_query(F.data[:4] == 'time', Homework.fourth)
-async def homework7(callback: CallbackQuery, state: FSMContext):
+@router_homework.callback_query(TimeCb.filter(), Homework.fourth)
+async def homework7(callback: CallbackQuery, state: FSMContext, callback_data: TimeCb):
     try:
-        hour = callback.data.split('_')[1]
+        hour = f"{callback_data.hour:02}"  # типизированный контракт вместо среза строки (§1/§2)
         data = await state.get_data()
         date_str = data['homework_date']
         date_with_time = f"{date_str.split(' ')[0]} {hour}:00:00"
@@ -299,34 +303,50 @@ async def homework9(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
         await callback.message.edit_text("Подтвердите отправку задания", inline_message_id=callback.inline_message_id, reply_markup=keyboard_homework_confirmation.markup)
+        # Экран подтверждения — обязательное состояние (§2): без него кнопки
+        # 'confirm'/'cancel' оставались бы живыми и ловились из любого экрана.
+        await state.set_state(Homework.confirm_send)
     except Exception as e:
         logging.error(f"Ошибка в функции homework9: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+        await state.set_state(Homework.second)
 
-@router_homework.callback_query(F.data == 'confirm_cancel')
+@router_homework.callback_query(F.data == 'cancel', Homework.confirm_send)
 async def homework10(callback: CallbackQuery, state: FSMContext):
+    """Отмена подтверждения выдачи: возврат на экран задания (§2)."""
     try:
         await callback.answer()
+        await state.set_state(Homework.second)
         await callback.message.answer('Дополните задание', reply_markup=keyboard_homework.markup)
     except Exception as e:
         logging.error(f"Ошибка в функции homework10: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_homework.callback_query(F.data == 'confirm_send')
+@router_homework.callback_query(F.data == 'confirm', Homework.confirm_send)
 async def homework11(callback: CallbackQuery, bot: Bot, state: FSMContext):
     try:
         data = await state.get_data()
         await callback.answer()
-        if data['homework_date'] == 0:
+        student_id = data.get('student_id')
+        if student_id is None:
+            # Сессия устарела (пользователь «застрял» с прошлого экрана) — сброс (§2)
+            await callback.message.answer('Сессия устарела, откройте «Выдать задание» заново',
+                                          reply_markup=keyboard_teacher_start.markup)
+            await state.clear()
+            return
+        date_val = data.get('homework_date', 0)
+        if date_val == 0 or not date_val:
+            await state.set_state(Homework.second)
             try:
                 await callback.message.edit_text("Установите дату сдачи", inline_message_id=callback.inline_message_id, reply_markup=keyboard_homework.markup)
             except Exception as e:
-                pass
+                logging.error(f"Ошибка редактирования сообщения в homework11: {e}")
         else:
-            save_task(id_teacher=callback.from_user.id, id_student=data['student_id'], text=data['homework_text'], file_name=data.get('file_name'), file_type=data.get('file_type'), file_data=data.get('file_data'), homework_date=data.get('homework_date'))
-            await bot.send_message(chat_id=data['student_id'], text=f"Новое задание!\nДедлайн: {data['homework_date']}")
+            save_task(id_teacher=callback.from_user.id, id_student=student_id, text=data['homework_text'], file_name=data.get('file_name'), file_type=data.get('file_type'), file_data=data.get('file_data'), homework_date=date_val)
+            await bot.send_message(chat_id=student_id, text=f"Новое задание!\nДедлайн: {date_val}")
             await callback.message.answer('Задание отправлено ученику!', reply_markup=keyboard_teacher_start.markup)
-            await state.clear()
+            await state.clear()  # терминальный шаг — обязательный сброс (§2)
     except Exception as e:
         logging.error(f"Ошибка в функции homework11: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+        await state.clear()

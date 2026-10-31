@@ -67,6 +67,24 @@ class StudentCb(CallbackData, prefix='stu'):
         return _CbModeFilter(callback_data=cls, expected_mode=mode, rule=rule)
 
 
+class MarkCb(CallbackData, prefix='mrk'):
+    """Кнопка «оценка» (клавиатура выбора оценки).
+
+    Раньше payload был 'mark5' и разбирался срезом callback.data[4]; теперь
+    значение всегда int и приходит типизированным.
+    """
+    value: int
+
+
+class TimeCb(CallbackData, prefix='tme'):
+    """Кнопка часа дедлайна ('time_00' ... 'time_23').
+
+    Раньше разбирался через data.split('_')[1] и фильтр F.data[:4] == 'time';
+    теперь час — int-поле контракта, строковый префикс не матчится ни с чем другим.
+    """
+    hour: int
+
+
 class TaskCb(CallbackData, prefix='tsk'):
     """Кнопка «задание» в динамическом списке.
 

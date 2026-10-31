@@ -10,13 +10,13 @@ from aiogram_calendar import SimpleCalendarCallback, SimpleCalendar, simple_cale
 
 from handlers.start import Start
 from keyboards.catalog_main_menu import keyboard_catalog_main_menu
-from keyboards.catalog_tasks_list import keyboard_catalog_tasks_list_teacher_check, keyboard_catalog_tasks_list_teacher_pass_confirm, keyboard_choice_marks, keyboard_catalog_tasks_list_student, keyboard_catalog_tasks_list_teacher, keyboard_catalog_tasks_list_student_pass, keyboard_catalog_tasks_list_student_pass_confirm, keyboard_catalog_tasks_list_teacher_check_passed_task, keyboard_catalog_tasks_list_cancel_input
+from keyboards.catalog_tasks_list import keyboard_catalog_tasks_list_teacher_check, keyboard_choice_marks, keyboard_catalog_tasks_list_student, keyboard_catalog_tasks_list_teacher, keyboard_catalog_tasks_list_student_pass, keyboard_catalog_tasks_list_confirm_generic, keyboard_catalog_tasks_list_teacher_check_passed_task, keyboard_catalog_tasks_list_cancel_input
 from keyboards.start import keyboard_teacher_start, keyboard_student_start
 from keyboards.homework import keyboard_time_selection
 from utils.catalog import add_student, save_answer_task, get_id_teacher, set_pass, set_marks, update_deadline, return_goback, get_date, get_is_active
 from utils.users import Student, Teacher
 from utils.template import DinamicKeyboard
-from utils.callbacks import StudentCb, TaskCb
+from utils.callbacks import StudentCb, TaskCb, MarkCb, TimeCb
 from utils.images_to_pdf import process_album_after_timeout
 
 router_catalog_tasks_list = Router()
@@ -43,6 +43,11 @@ class CatalogTasksList(StatesGroup):
     add_file_to_task = State()
     change_deadline = State()
     _return = State()
+    # Экраны подтверждения терминальных шагов: кнопки «✅ Подтвердить / ❌ Отменить»
+    # матчатся только из своего экрана — живой кнопкой из старого сообщения
+    # действие больше не повторить (§2).
+    confirm_pass = State()        # ученик подтверждает сдачу задания
+    confirm_set_passed = State()  # учитель подтверждает отметку «решено»
 
 
 async def reset_flow(state: FSMContext) -> None:
@@ -423,16 +428,27 @@ async def special_function_teacher(callback: CallbackQuery, state: FSMContext, b
 
 
 
-@router_catalog_tasks_list.callback_query(F.data == 'pass_task')
+@router_catalog_tasks_list.callback_query(F.data == 'pass_task',
+                                          CatalogTasksList.view_active_tasks_student)
 async def catalog11(callback: CallbackQuery, state: FSMContext):
+    """Шаг подтверждения сдачи — только из экрана активного задания (§2)."""
     try:
+        data = await state.get_data()
+        if data.get('selected_task_id') is None:
+            await callback.answer()
+            await callback.message.answer('Сессия устарела, откройте «Список заданий» заново',
+                                          reply_markup=keyboard_student_start.markup)
+            await reset_flow(state)
+            return
         await callback.answer()
-        await callback.message.edit_text('Вы уверены, что хотите сдать задание?', reply_markup=keyboard_catalog_tasks_list_student_pass_confirm.markup)
+        await callback.message.edit_text('Вы уверены, что хотите сдать задание?',
+                                         reply_markup=keyboard_catalog_tasks_list_confirm_generic.markup)
+        await state.set_state(CatalogTasksList.confirm_pass)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog11: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_catalog_tasks_list.callback_query(F.data == 'confirm_pass_task')
+@router_catalog_tasks_list.callback_query(F.data == 'confirm', CatalogTasksList.confirm_pass)
 async def catalog12(callback: CallbackQuery, state: FSMContext, bot: Bot):
     try:
         await callback.answer()
@@ -445,8 +461,10 @@ async def catalog12(callback: CallbackQuery, state: FSMContext, bot: Bot):
         if data.get('added_text') == None:
             await callback.message.answer('Прикрепите текст ответа сначала')
             await special_function_callback(callback, state)
+            await state.set_state(CatalogTasksList.view_active_tasks_student)
         elif get_is_active((await state.get_data())['selected_task_id']) != 1:
             await callback.message.answer("Задание уже сдано", reply_markup=keyboard_student_start.markup)
+            await reset_flow(state)
         else:
             await callback.message.answer('Задание сдано преподавателю. Ожидайте проверки.', reply_markup=keyboard_student_start.markup)
             save_answer_task(
@@ -462,21 +480,25 @@ async def catalog12(callback: CallbackQuery, state: FSMContext, bot: Bot):
             date = [x for x in student.homework_active if x['id'] == (await state.get_data())['selected_task_id']]
             date = date[0]['deadline']
             await bot.send_message(get_id_teacher((await state.get_data())['selected_task_id']), f"Ученик {student.name_student['name']} сдал(а) задание, заданное на {date}. Проверьте его.")
+            await reset_flow(state)  # терминальный шаг флоу сдачи (§2)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog12: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
-    finally:
-        await reset_flow(state)  # терминальный шаг флоу сдачи (§2)
+        await reset_flow(state)
 
-@router_catalog_tasks_list.callback_query(F.data == 'cancel_pass_task')
+@router_catalog_tasks_list.callback_query(F.data == 'cancel', CatalogTasksList.confirm_pass)
 async def catalog13(callback: CallbackQuery, state: FSMContext):
+    """Отмена сдачи возвращает пользователя в экран активного задания и снимает
+    состояние подтверждения — кнопки «Подтвердить/Отменить» больше не живые (§2)."""
     try:
         await callback.answer()
-        await callback.message.answer('Сдача задания отменена.', reply_markup=keyboard_catalog_tasks_list_student.markup)
-        await reset_flow(state)  # отмена = выход из экрана (§2)
+        await reset_flow(state)
+        await callback.message.answer('Сдача задания отменена.',
+                                      reply_markup=keyboard_catalog_tasks_list_student.markup)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog13: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+        await reset_flow(state)
 
 
 @router_catalog_tasks_list.callback_query(TaskCb.filter(mode='d'), CatalogTasksList.view_passed_tasks_student)

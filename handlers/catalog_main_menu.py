@@ -9,6 +9,7 @@ from keyboards.catalog_tasks_list import keyboard_catalog_tasks_list_student_pas
 from keyboards.catalog_main_menu import keyboard_catalog_main_menu, keyboard_catalog_main_menu_confirm
 from utils.users import Teacher, Student
 from utils.template import DinamicKeyboard
+from utils.callbacks import StudentCb
 from utils.catalog import add_student, remove_student
 
 router_catalog_main_menu = Router()
@@ -59,11 +60,11 @@ async def catalog_delete_student(callback: CallbackQuery, state: FSMContext):
         logging.error(f"Ошибка в функции catalog_delete_student: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_catalog_main_menu.callback_query(F.data[:17] == 'callback_data_ds_')
-async def catalog_delete_student_confirm(callback: CallbackQuery, state: FSMContext):
+@router_catalog_main_menu.callback_query(StudentCb.filter(mode='del'))
+async def catalog_delete_student_confirm(callback: CallbackQuery, state: FSMContext, callback_data: StudentCb):
     try:
         await callback.answer()
-        student_id = int(callback.data.split('_')[4])
+        student_id = callback_data.student_id
         await state.update_data(delete_student_id=student_id)
         student = Student()
         student.get_statistics(student_id)

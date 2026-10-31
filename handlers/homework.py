@@ -9,6 +9,7 @@ from handlers.start import Start
 from keyboards.homework import keyboard_homework, keyboard_homework_confirmation, keyboard_time_selection, keyboard_homework_add_file
 from keyboards.start import keyboard_teacher_start
 from utils.template import DinamicKeyboard
+from utils.callbacks import StudentCb
 from utils.homework import save_task
 from utils.users import Teacher
 from utils.images_to_pdf import process_album_after_timeout, process_album_after_timeout2
@@ -37,10 +38,10 @@ async def homework0(message: Message, state: FSMContext):
         logging.error(f"Ошибка в функции homework0: {e}")
         message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_homework.callback_query(F.data[:13]=='callback_data', Homework.first)
-async def homework1(callback: CallbackQuery, state: FSMContext):
+@router_homework.callback_query(StudentCb.filter(mode='view'), Homework.first)
+async def homework1(callback: CallbackQuery, state: FSMContext, callback_data: StudentCb):
     try:
-        await state.update_data(student_id=int(callback.data.split('_')[4]))
+        await state.update_data(student_id=callback_data.student_id)
         await callback.answer()
         await callback.message.answer('Пришлите текст задания')
         await state.set_state(Homework.fifth)

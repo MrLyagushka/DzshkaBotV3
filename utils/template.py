@@ -1,21 +1,53 @@
-from typing import List
+from typing import List, Optional
 from aiogram.filters.callback_data import CallbackData
 
 from typing_extensions import Literal, TypedDict
 from utils.users import Teacher, Student
 from utils.menu import Menu
+from utils.callbacks import (
+    PageCb,
+    StudentCb,
+    TaskCb,
+    student_button_text,
+    task_button_text,
+)
 
 
+# Старые сокращения режимов -> новые типизированные контракты (см. utils/callbacks.py)
+_STUDENT_KINDS = {'st': 'view',   # список учеников учителя: выбор ученика
+                  'ds': 'del'}    # список учеников учителя: выбор ученика для отвязки/удаления
+_TASK_KINDS = {'tsa': 'a',        # активные задания
+               'tsd': 'd',        # завершенные (сданные) задания
+               'tsp': 'p'}        # задания на проверке
+_IS_ACTIVE_BY_MODE = {'a': 1, 'd': 0, 'p': -1}
+_REVERSE_BY_MODE = {'a': True, 'd': False, 'p': True}
 
 
-class MyCallbackData(CallbackData, prefix='my'):
-    callback_data: str
-    first_index: int
-    row: int
-    column: int
-    is_always_bigger: Literal['yes', 'no']
-    button_info: str
-    len_button_list: int
+def parse_button_info(button_info: str):
+    """Разбирает 'st_<id>' / 'ds_<id>' / 'tsa_<id>' -> (kind, owner_id, mode).
+
+    Разделитель '_' здесь встречается ровно один раз (id — число), поэтому split безопасен.
+    """
+    kind, _, raw_id = button_info.partition('_')
+    if kind in _STUDENT_KINDS:
+        return 'students', int(raw_id), _STUDENT_KINDS[kind]
+    if kind in _TASK_KINDS:
+        return 'tasks', int(raw_id), _TASK_KINDS[kind]
+    raise ValueError(f'Неизвестный формат button_info: {button_info!r}')
+
+
+def load_buttons(kind: str, owner_id: int, mode: str):
+    """Возвращает (texts, ids) — подписи кнопок и их id из БД."""
+    if kind == 'students':
+        data = Teacher()
+        data.get_statistics(owner_id)
+        return ([student_button_text(x['name'], x['id']) for x in data.students_info],
+                [x['id'] for x in data.students_info])
+    data = Student()
+    data.get_students_tasks(owner_id, reverse=_REVERSE_BY_MODE[mode])
+    wanted = _IS_ACTIVE_BY_MODE[mode]
+    tasks = [x for x in data.homework_active if x['is_active'] == wanted]
+    return ([task_button_text(x['deadline']) for x in tasks], [x['id'] for x in tasks])
 
 
 class DinamicKeyboard():
@@ -25,8 +57,11 @@ class DinamicKeyboard():
         """
         Кароч, указываешь количество строк - row, столбцов - column. Также введи, будет ли твоя клавиатура
         всегда больше чем column*row или нет. И еще список кнопок.
-        Формат button_info: st, tsa, tsd, tt. Список учеников, список заданий у ученика(активных и неактивных), список заданий у учителя.
-        st_idteacher или ts_idstudent или tt_number
+        Формат button_info: st, ds, tsa, tsd, tsp. Список учеников, список учеников для удаления,
+        список заданий у ученика (активных / сданных / на проверке).
+        st_idteacher, ds_idteacher или tsa_idstudent и т.д.
+        Подписи кнопок и callback_data разделены: в callback_data только типизированный контракт
+        (StudentCb/TaskCb/PageCb), имя ученика или дата туда не попадают.
         """
         self.first_index = first_index
         self.row = row
@@ -34,53 +69,38 @@ class DinamicKeyboard():
         self.is_always_bigger_column_multiply_row = is_always_bigger_column_multiply_row
         self.button_info = button_info
 
+    def _page_callback(self, direction: str, total: int) -> str:
+        kind, owner_id, mode = parse_button_info(self.button_info)
+        return PageCb(direction=direction,
+                      first_index=self.first_index,
+                      row=self.row,
+                      column=self.column,
+                      is_always_bigger=self.is_always_bigger_column_multiply_row,
+                      kind=kind,
+                      owner_id=owner_id,
+                      mode=mode,
+                      total=total).pack()
+
     def generate_keyboard(self):
-        """
-        На будущее, тут можно вырать из трех режимов, так легче, чем указывать путь к файлу,
-          или что-то подобноею После выбора режима и ввода через :  id , """
+        """Собирает inline-клавиатуру списка: кнопки элементов + пагинация."""
         dinamic_keyboard = Menu('inline', self.row+1)
-
-        if self.button_info.split('_')[0] in ['st', 'ds']:
-            #Передать id учеников в массиве
-            data = Teacher()
-            data.get_statistics(int(self.button_info.split('_')[1]))
-            self.button_list = [x['name'] for x in data.students_info]
-            self.button_list2 = [x['id'] for x in data.students_info]
-
-        elif self.button_info.split('_')[0] == 'tsa':
-            data = Student()
-            data.get_students_tasks(int(self.button_info.split('_')[1]), reverse=True)
-            self.button_list = [x['deadline'][5:10] for x in data.homework_active if x['is_active'] == 1] 
-            self.button_list2 = [x['id'] for x in data.homework_active if x['is_active'] == 1]
-
-        elif self.button_info.split('_')[0] == 'tsd':
-            data = Student()
-            data.get_students_tasks(int(self.button_info.split('_')[1]))
-            self.button_list = [x['deadline'][5:10] for x in data.homework_active if x['is_active'] == 0] 
-            self.button_list2 = [x['id'] for x in data.homework_active if x['is_active'] == 0]
-        
-        elif self.button_info.split('_')[0] == 'tsp':
-            data = Student()
-            data.get_students_tasks(int(self.button_info.split('_')[1]), reverse=True)
-            self.button_list = [x['deadline'][5:10] for x in data.homework_active if x['is_active'] == -1] 
-            self.button_list2 = [x['id'] for x in data.homework_active if x['is_active'] == -1]
-        # elif self.button_info.split('_')[0] == 'tt':
-        #     self.button_list = TaskBank().get_task(int(self.button_info.split('_')[1]))
+        kind, owner_id, mode = parse_button_info(self.button_info)
+        self.button_list, self.button_list2 = load_buttons(kind, owner_id, mode)
         count = 0
         while count < self.row * self.column and self.first_index + count < len(self.button_list):
             row = count // self.column
-            if self.button_info.split('_')[0] in ['st', 'ds']:
-                dinamic_keyboard.new_button(row_number=row+1, text=str(self.button_list[self.first_index+count]),# Т.к. в классе Menu, row_number идет от 0, для удобства пользования
-                                        callback_data=f'callback_data_{self.button_info.split("_")[0]}_{self.button_list[self.first_index+count]}_{self.button_list2[self.first_index+count]}')
-            elif self.button_info.split('_')[0] in ['tsa', 'tsd', 'tsp']:
-                dinamic_keyboard.new_button(row_number=row+1, text='До '+str(self.button_list[self.first_index+count]),# Т.к. в классе Menu, row_number идет от 0, для удобства пользования
-                                        callback_data=f'callback_data{self.button_info.split("_")[0]}_{self.button_list[self.first_index+count]}_{self.button_list2[self.first_index+count]}')
-            # elif self.button_info.split('_')[0] == 'tt':
-            #     dinamic_keyboard.new_button(row_number=row+1, text=str(self.button_list[self.first_index+count][3]),# Т.к. в классе Menu, row_number идет от 0, для удобства пользования
-            #                             callback_data=f'callback_data_{self.button_info.split("_")[0]}_{self.button_list[self.first_index+count][3]}')
+            item_id = self.button_list2[self.first_index+count]
+            if kind == 'students':
+                callback_data = StudentCb(mode=mode, student_id=item_id).pack()
+            else:
+                callback_data = TaskCb(mode=mode, task_id=item_id).pack()
+            dinamic_keyboard.new_button(row_number=row+1, text=self.button_list[self.first_index+count],
+                                        # Т.к. в классе Menu, row_number идет от 0, для удобства пользования
+                                        callback_data=callback_data)
             count += 1
         if len(self.button_list) > self.row*self.column:
-            dinamic_keyboard.new_button(row_number=self.row+1, text='<', # Т.к. в классе Menu, row_number идет от 0, для удобства пользования
-                                    callback_data=MyCallbackData(callback_data='<', first_index=self.first_index, row=self.row, column=self.column, is_always_bigger=self.is_always_bigger_column_multiply_row, button_info=self.button_info, len_button_list=len(self.button_list)).pack())
-            dinamic_keyboard.new_button(row_number=self.row+1, text='>', callback_data=MyCallbackData(callback_data='>', first_index=self.first_index, row=self.row, column=self.column, is_always_bigger= self.is_always_bigger_column_multiply_row, button_info=self.button_info, len_button_list=len(self.button_list)).pack())
+            dinamic_keyboard.new_button(row_number=self.row+1, text='<',  # Т.к. в классе Menu, row_number идет от 0, для удобства пользования
+                                        callback_data=self._page_callback('prev', len(self.button_list)))
+            dinamic_keyboard.new_button(row_number=self.row+1, text='>',
+                                        callback_data=self._page_callback('next', len(self.button_list)))
         return dinamic_keyboard.markup

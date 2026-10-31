@@ -15,11 +15,13 @@ from keyboards.homework import keyboard_time_selection
 from utils.catalog import add_student, save_answer_task, get_id_teacher, set_pass, set_marks, update_deadline, return_goback, get_date, get_is_active
 from utils.users import Student, Teacher
 from utils.template import DinamicKeyboard
+from utils.callbacks import StudentCb, TaskCb
 from utils.images_to_pdf import process_album_after_timeout
 
 router_catalog_tasks_list = Router()
 
 class CatalogTasksList(StatesGroup):
+    fifth = State()  # задания на проверке у ученика (используется homework0/28; см. §2 плана)
     view_active_tasks_student = State()
     view_passed_tasks_student = State()
     view_active_tasks_teacher = State()
@@ -47,11 +49,11 @@ async def catalog5(callback: CallbackQuery, state: FSMContext):
         logging.error(f"Ошибка в функции catalog5: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_catalog_tasks_list.callback_query(F.data[:16] == 'callback_datatsa', CatalogTasksList.view_active_tasks_student)
-async def catalog6(callback: CallbackQuery, state: FSMContext):
+@router_catalog_tasks_list.callback_query(TaskCb.filter(mode='a'), CatalogTasksList.view_active_tasks_student)
+async def catalog6(callback: CallbackQuery, state: FSMContext, callback_data: TaskCb):
     try:
         await callback.answer()
-        task_id = int(callback.data.split('_')[3])
+        task_id = callback_data.task_id
         await state.update_data(selected_task_id=task_id)
         student = Student()
         student.get_students_tasks(callback.from_user.id)
@@ -129,7 +131,7 @@ async def catalog28(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         if [x for x in student.homework_active if x['is_active'] == -1]:
             await callback.message.answer(f"Задания на проверке", reply_markup=DinamicKeyboard(1,3,'no',0,f'tsp_{callback.from_user.id}').generate_keyboard())
-            await state.set_state(CatalogTasksList.fifth)
+            await state.set_state(CatalogTasksList.view_check_tasks_student)
         else:
             await callback.message.answer("У вас нет заданий на проверке")
     except Exception as e:
@@ -430,11 +432,11 @@ async def catalog13(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 
-@router_catalog_tasks_list.callback_query(F.data[:16] == 'callback_datatsd', CatalogTasksList.view_active_tasks_student)
-async def catalog15(callback: CallbackQuery, state: FSMContext):
+@router_catalog_tasks_list.callback_query(TaskCb.filter(mode='d'), CatalogTasksList.view_passed_tasks_student)
+async def catalog15(callback: CallbackQuery, state: FSMContext, callback_data: TaskCb):
     try:
         await callback.answer()
-        task_id = int(callback.data.split('_')[3])
+        task_id = callback_data.task_id
         await state.update_data(selected_task_id=task_id)
         student = Student()
         student.get_students_tasks(callback.from_user.id)
@@ -461,25 +463,25 @@ async def catalog15(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 
-@router_catalog_tasks_list.callback_query(F.data[:16] == 'callback_data_st')
-async def catalog17(callback: CallbackQuery, state: FSMContext):
+@router_catalog_tasks_list.callback_query(StudentCb.filter(mode='view'))
+async def catalog17(callback: CallbackQuery, state: FSMContext, callback_data: StudentCb):
     try:
-        await state.update_data(id_student=callback.data.split('_')[4])
+        await state.update_data(id_student=callback_data.student_id)
         await callback.answer()
         student = Student()
-        student.get_statistics(int(callback.data.split('_')[4]))
+        student.get_statistics(callback_data.student_id)
         name = student.name_student['name'] if student.name_student else 'Неизвестно'
-        await callback.message.answer(f'Ученик: {name} (id ученика: {callback.data.split("_")[4]})\nВыберите', reply_markup=keyboard_catalog_tasks_list_teacher.markup)
+        await callback.message.answer(f'Ученик: {name} (id ученика: {callback_data.student_id})\nВыберите', reply_markup=keyboard_catalog_tasks_list_teacher.markup)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog17: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 
-@router_catalog_tasks_list.callback_query(F.data[:16] == 'callback_datatsa', CatalogTasksList.view_active_tasks_teacher)
-async def catalog19(callback: CallbackQuery, state: FSMContext):
+@router_catalog_tasks_list.callback_query(TaskCb.filter(mode='a'), CatalogTasksList.view_active_tasks_teacher)
+async def catalog19(callback: CallbackQuery, state: FSMContext, callback_data: TaskCb):
     try:
         await callback.answer()
-        task_id = int(callback.data.split('_')[3])
+        task_id = callback_data.task_id
         id_student = (await state.get_data())['id_student']
         await state.update_data(selected_task_id=task_id)
         student = Student()
@@ -499,12 +501,12 @@ async def catalog19(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 
-@router_catalog_tasks_list.callback_query(F.data[:16] == 'callback_datatsd', CatalogTasksList.view_active_tasks_teacher)
-async def catalog21(callback: CallbackQuery, state: FSMContext):
+@router_catalog_tasks_list.callback_query(TaskCb.filter(mode='d'), CatalogTasksList.view_passed_tasks_teacher)
+async def catalog21(callback: CallbackQuery, state: FSMContext, callback_data: TaskCb):
     try:
         await callback.answer()
         id_student = (await state.get_data())['id_student']
-        task_id = int(callback.data.split('_')[3])
+        task_id = callback_data.task_id
         await state.update_data(selected_task_id=task_id)
         student = Student()
         student.get_students_tasks(id_student)
@@ -612,11 +614,11 @@ async def catalog27(callback: CallbackQuery, state: FSMContext, bot: Bot):
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 
-@router_catalog_tasks_list.callback_query(F.data[:16] == 'callback_datatsp', CatalogTasksList.view_active_tasks_student)
-async def catalog29(callback: CallbackQuery, state: FSMContext):
+@router_catalog_tasks_list.callback_query(TaskCb.filter(mode='p'), CatalogTasksList.view_check_tasks_student)
+async def catalog29(callback: CallbackQuery, state: FSMContext, callback_data: TaskCb):
     try:
         await callback.answer()
-        task_id = int(callback.data.split('_')[3])
+        task_id = callback_data.task_id
         await state.update_data(selected_task_id=task_id)
         student = Student()
         student.get_students_tasks(callback.from_user.id)
@@ -643,12 +645,12 @@ async def catalog29(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 
-@router_catalog_tasks_list.callback_query(F.data[:16] == 'callback_datatsp', CatalogTasksList.view_active_tasks_teacher)
-async def catalog31(callback: CallbackQuery, state: FSMContext):
+@router_catalog_tasks_list.callback_query(TaskCb.filter(mode='p'), CatalogTasksList.view_check_tasks_teacher)
+async def catalog31(callback: CallbackQuery, state: FSMContext, callback_data: TaskCb):
     try:
         await callback.answer()
         id_student = (await state.get_data())['id_student']
-        task_id = int(callback.data.split('_')[3])
+        task_id = callback_data.task_id
         await state.update_data(selected_task_id=task_id)
         student = Student()
         student.get_students_tasks(id_student)

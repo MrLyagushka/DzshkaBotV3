@@ -2,6 +2,7 @@ from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
+from aiogram.filters import StateFilter
 import logging
 import asyncio
 from aiogram_calendar import SimpleCalendarCallback, SimpleCalendar, simple_calendar
@@ -9,7 +10,7 @@ from aiogram_calendar import SimpleCalendarCallback, SimpleCalendar, simple_cale
 
 from handlers.start import Start
 from keyboards.catalog_main_menu import keyboard_catalog_main_menu
-from keyboards.catalog_tasks_list import keyboard_catalog_tasks_list_teacher_check, keyboard_catalog_tasks_list_teacher_pass_confirm, keyboard_choice_marks, keyboard_catalog_tasks_list_student, keyboard_catalog_tasks_list_teacher, keyboard_catalog_tasks_list_student_pass, keyboard_catalog_tasks_list_student_pass_confirm, keyboard_catalog_tasks_list_teacher_check_passed_task
+from keyboards.catalog_tasks_list import keyboard_catalog_tasks_list_teacher_check, keyboard_catalog_tasks_list_teacher_pass_confirm, keyboard_choice_marks, keyboard_catalog_tasks_list_student, keyboard_catalog_tasks_list_teacher, keyboard_catalog_tasks_list_student_pass, keyboard_catalog_tasks_list_student_pass_confirm, keyboard_catalog_tasks_list_teacher_check_passed_task, keyboard_catalog_tasks_list_cancel_input
 from keyboards.start import keyboard_teacher_start, keyboard_student_start
 from keyboards.homework import keyboard_time_selection
 from utils.catalog import add_student, save_answer_task, get_id_teacher, set_pass, set_marks, update_deadline, return_goback, get_date, get_is_active
@@ -21,7 +22,17 @@ from utils.images_to_pdf import process_album_after_timeout
 router_catalog_tasks_list = Router()
 
 class CatalogTasksList(StatesGroup):
-    fifth = State()  # задания на проверке у ученика (используется homework0/28; см. §2 плана)
+    """Состояния = экраны (см. REFACTORING_GUIDE.md, §2).
+
+    Правило: хендлер колбэка обязан требовать ровно то состояние, которое поставил
+    родительский экран. Для динамических списков это <экран>_<роль>:
+      tsa -> view_active_tasks_{student|teacher}
+      tsd -> view_passed_tasks_{student|teacher}
+      tsp -> view_check_tasks_{student|teacher}
+    Терминальные шаги (сдал / оценка / подтверждение / дорешка / дедлайн) всегда
+    делают state.clear(), чтобы следующие сообщения пользователя не перехватывались
+    message-хендлерами чужого экрана (add_text_to_task, _return, add_file_to_task...).
+    """
     view_active_tasks_student = State()
     view_passed_tasks_student = State()
     view_active_tasks_teacher = State()
@@ -32,7 +43,17 @@ class CatalogTasksList(StatesGroup):
     add_file_to_task = State()
     change_deadline = State()
     _return = State()
-    time = State()
+
+
+async def reset_flow(state: FSMContext) -> None:
+    """Сброс FSM-экрана + черновиков (см. §2 плана).
+
+    Черновики (added_text/file_*/selected_task_id/id_student/callback_data) живут в том же
+    контексте, что и состояние: без их очистки следующий экран может прочитать данные
+    предыдущего сообщения/ученика («ошибки доступа между сообщениями», §3).
+    """
+    await state.clear()
+    await state.update_data(added_text=None, file_name=None, file_type=None, file_data=None)
 
 @router_catalog_tasks_list.callback_query(F.data == 'view_active_tasks_student')
 async def catalog5(callback: CallbackQuery, state: FSMContext):
@@ -159,11 +180,32 @@ async def catalog30(callback: CallbackQuery, state: FSMContext):
 async def catalog7(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
-        await callback.message.answer('Пришлите текст для добавления к заданию')
+        await callback.message.answer('Пришлите текст для добавления к заданию '
+                                      '(или нажмите «❌ Отменить»)',
+                                      reply_markup=keyboard_catalog_tasks_list_cancel_input.markup)
         await state.set_state(CatalogTasksList.add_text_to_task)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog7: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+@router_catalog_tasks_list.callback_query(F.data == 'cancel_add_text')
+async def catalog_cancel_add_text(callback: CallbackQuery, state: FSMContext):
+    """Отмена ввода текста ответа: обязательный сброс экрана (§2)."""
+    try:
+        await callback.answer()
+        await reset_flow(state)
+        await callback.message.answer('Добавление текста отменено.',
+                                       reply_markup=keyboard_catalog_tasks_list_student.markup)
+    except Exception as e:
+        logging.error(f"Ошибка в функции catalog_cancel_add_text: {e}")
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+@router_catalog_tasks_list.message(CatalogTasksList.add_text_to_task, F.text.lower() == 'отмена')
+@router_catalog_tasks_list.message(CatalogTasksList._return, F.text.lower() == 'отмена')
+async def catalog_cancel_by_text(message: Message, state: FSMContext):
+    """Слово «Отмена» прерывает любой ввод-флоу этого роутера и снимает состояние."""
+    await reset_flow(state)
+    await message.answer('Операция отменена', reply_markup=keyboard_student_start.markup)
 
 @router_catalog_tasks_list.message(CatalogTasksList.add_text_to_task)
 async def catalog8(message: Message, state: FSMContext):
@@ -171,6 +213,7 @@ async def catalog8(message: Message, state: FSMContext):
         await state.update_data(added_text=message.text)
         await message.answer('Текст успешно добавлен к заданию.')
         await special_function(message, state)
+        await reset_flow(state)  # экран закрыт — больше не ловим текстовые сообщения (add_text_to_task)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog8: {e}")
         await message.answer('❌Ошибка, обратитесь в поддержку')
@@ -179,7 +222,9 @@ async def catalog8(message: Message, state: FSMContext):
 async def catalog9(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
-        await callback.message.answer('Пришлите файл для добавления к решению/ответу')
+        await callback.message.answer('Пришлите файл для добавления к решению/ответу '
+                                      '(или нажмите «❌ Отменить»)',
+                                      reply_markup=keyboard_catalog_tasks_list_cancel_input.markup)
         await state.set_state(CatalogTasksList.add_file_to_task)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog9: {e}")
@@ -237,12 +282,14 @@ async def handle_photo_or_album(message: Message, state: FSMContext, bot):
             )
             await message.answer("Фото прикреплено")
             await special_function(message, state)
+            await reset_flow(state)  # файл принят — экран ввода закрываем (§2)
 
 
     except Exception as e:
         logging.error(f"Ошибка в handle_photo_or_album: {e}")
         await message.answer("❌ Ошибка при обработке фото")
         await special_function(message, state)
+        await reset_flow(state)
 
 
 @router_catalog_tasks_list.message((F.document | F.photo | F.video | F.audio), CatalogTasksList.add_file_to_task)
@@ -277,18 +324,23 @@ async def catalog10(message: Message, state: FSMContext, bot: Bot):
         else:
             await message.answer("Поддерживаются только: фото, документы, видео, аудио.")
             await special_function(message, state)
+            await reset_flow(state)
+            return
         if file_data.__sizeof__() > 10500000:
             await message.answer("Файл слишком большой, максимальный размер файла 10 МБ.")
             await special_function(message, state)
+            await reset_flow(state)
         else:
             await state.update_data(file_name=file_name, file_type=file_type, file_data=file_data)
             await message.answer('Файл прикреплен')
             await special_function(message, state)
+            await reset_flow(state)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog10: {e}")
         await message.answer('❌Ошибка, обратитесь в поддержку')
 
 async def special_function(message: Message, state: FSMContext):
+    """Экран «активное задание ученика» после добавления текста/файла к ответу."""
     task_id = (await state.get_data())['selected_task_id']
     student = Student()
     student.get_students_tasks(message.from_user.id)
@@ -319,20 +371,6 @@ async def special_function_callback_not_callback(callback: CallbackQuery, state:
     else:
         await callback.message.answer("Задание не найдено.")
 
-async def special_function(message: Message, state: FSMContext):
-    task_id = (await state.get_data())['selected_task_id']
-    student = Student()
-    student.get_students_tasks(message.from_user.id)
-    selected_task = [task for task in student.homework_active if task['id'] == task_id]
-    if selected_task:
-        teacher = Teacher()
-        teacher.get_statistics(selected_task[0]['id_teacher'])
-        if selected_task[0]['file_name'] != None:
-            document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
-            await message.answer_document(document=document_to_send, caption='Файл к заданию')
-        await message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}", reply_markup=keyboard_catalog_tasks_list_student_pass.markup)
-    else:
-        await message.answer("Задание не найдено.")
 
 async def special_function_callback(callback: CallbackQuery, state: FSMContext):
     task_id = (await state.get_data())['selected_task_id']
@@ -398,7 +436,13 @@ async def catalog11(callback: CallbackQuery, state: FSMContext):
 async def catalog12(callback: CallbackQuery, state: FSMContext, bot: Bot):
     try:
         await callback.answer()
-        if (await state.get_data())['added_text'] == None:
+        data = await state.get_data()
+        if data.get('selected_task_id') is None:
+            await callback.message.answer('Сессия устарела, откройте «Список заданий» заново',
+                                          reply_markup=keyboard_student_start.markup)
+            await reset_flow(state)
+            return
+        if data.get('added_text') == None:
             await callback.message.answer('Прикрепите текст ответа сначала')
             await special_function_callback(callback, state)
         elif get_is_active((await state.get_data())['selected_task_id']) != 1:
@@ -421,12 +465,15 @@ async def catalog12(callback: CallbackQuery, state: FSMContext, bot: Bot):
     except Exception as e:
         logging.error(f"Ошибка в функции catalog12: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+    finally:
+        await reset_flow(state)  # терминальный шаг флоу сдачи (§2)
 
 @router_catalog_tasks_list.callback_query(F.data == 'cancel_pass_task')
 async def catalog13(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
         await callback.message.answer('Сдача задания отменена.', reply_markup=keyboard_catalog_tasks_list_student.markup)
+        await reset_flow(state)  # отмена = выход из экрана (§2)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog13: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -466,6 +513,7 @@ async def catalog15(callback: CallbackQuery, state: FSMContext, callback_data: T
 @router_catalog_tasks_list.callback_query(StudentCb.filter(mode='view'))
 async def catalog17(callback: CallbackQuery, state: FSMContext, callback_data: StudentCb):
     try:
+        await reset_flow(state)  # новый флоу: не переносим selected_task_id/черновики прошлого экрана (§2)
         await state.update_data(id_student=callback_data.student_id)
         await callback.answer()
         student = Student()
@@ -537,6 +585,7 @@ async def catalog22(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         await callback.message.edit_text('Выберите оценку', reply_markup=keyboard_choice_marks.markup)
         await state.update_data(callback_data='set_marks')
+        await state.set_state(CatalogTasksList.view_check_tasks_teacher)  # фильтр ниже требует это состояние (§2)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog22: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -547,21 +596,25 @@ async def catalog23(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         await callback.message.edit_text('Выберите оценку', reply_markup=keyboard_choice_marks.markup)
         await state.update_data(callback_data='set_marks_pased_task')
+        await state.set_state(CatalogTasksList.view_passed_tasks_teacher)  # экран «Завершенные» (§2)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog23: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
-@router_catalog_tasks_list.callback_query(F.data[:4] == 'mark')
+@router_catalog_tasks_list.callback_query(F.data[:4] == 'mark',
+                                          StateFilter(CatalogTasksList.view_check_tasks_teacher,
+                                                      CatalogTasksList.view_passed_tasks_teacher))
 async def catalog24(callback: CallbackQuery, state: FSMContext, bot: Bot):
     try:
         await callback.answer()
-        set_marks((await state.get_data())['selected_task_id'], callback.data[4])
+        data = await state.get_data()
+        if data.get('selected_task_id') is None:
+            await callback.message.answer('Сессия устарела, откройте список заданий заново',
+                                          reply_markup=keyboard_teacher_start.markup)
+            await reset_flow(state)
+            return
+        set_marks(data['selected_task_id'], callback.data[4])
         await callback.message.answer('Оценка установлена')
-    except Exception as e:
-        logging.error(f"Ошибка в функции catalog24: {e}")
-        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
-    try:
-        await callback.answer()
         id_student = (await state.get_data())['id_student']
         task_id = (await state.get_data())['selected_task_id']
         student = Student()
@@ -569,17 +622,19 @@ async def catalog24(callback: CallbackQuery, state: FSMContext, bot: Bot):
         selected_task = [task for task in student.homework_active if task['id'] == task_id]
         callback_data = (await state.get_data())['callback_data']
         await special_function_teacher(callback, state, bot, selected_task, callback_data)
-        
+        await reset_flow(state)  # оценка выставлена — терминальный шаг экрана (§2)
     except Exception as e:
-        logging.error(f"Ошибка в функции catalog23: {e}")
+        logging.error(f"Ошибка в функции catalog24: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+        await reset_flow(state)
 
 @router_catalog_tasks_list.callback_query(F.data == 'set_passed')
 async def catalog25(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
         await callback.message.answer('Вы уверены?', reply_markup=keyboard_catalog_tasks_list_teacher_pass_confirm.markup)
-        await state.update_data(callback_data='set_marks')
+        await state.update_data(callback_data='set_marks_pased_task')
+        await state.set_state(CatalogTasksList.view_passed_tasks_teacher)  # экран подтверждения (§2)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog25: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -594,9 +649,11 @@ async def catalog26(callback: CallbackQuery, state: FSMContext, bot: Bot):
             data = set_pass((await state.get_data())['selected_task_id'])[0]
             await callback.message.answer('Задание отмечено как завершенное', reply_markup=keyboard_teacher_start.markup)
             await bot.send_message(data['id_student'], f'Вам выставили оценку {data["marks"]} по дз на {data["deadline"]}')
+        await reset_flow(state)  # терминальный шаг (§2)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog26: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+        await reset_flow(state)
 
 @router_catalog_tasks_list.callback_query(F.data == 'cancel')
 async def catalog27(callback: CallbackQuery, state: FSMContext, bot: Bot):
@@ -609,6 +666,7 @@ async def catalog27(callback: CallbackQuery, state: FSMContext, bot: Bot):
         selected_task = [task for task in student.homework_active if task['id'] == task_id]
         callback_data = (await state.get_data())['callback_data']
         await special_function_teacher(callback, state, bot, selected_task, callback_data)
+        await state.update_data(callback_data=None)  # черновик не переносим на следующий экран (§2)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog27: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -726,7 +784,7 @@ async def catalog35(callback: CallbackQuery, state: FSMContext):
         
         await callback.answer(f"Время обновлено: {date_with_time}")
         await special_function_callback_not_callback(callback, state)
-        await state.set_state(CatalogTasksList.time)
+        await reset_flow(state)  # дедлайн изменён — терминальный шаг экрана (§2)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog35: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -737,7 +795,7 @@ async def catalog36(callback: CallbackQuery, state: FSMContext):
         data = await state.get_data()
         
         await callback.answer()
-        await callback.message.edit_text('Пришлите коментарий для отправки ученику или None, что бы отменить')
+        await callback.message.answer('Пришлите коментарий для отправки ученику или «Отмена», что бы отменить')
         await state.set_state(CatalogTasksList._return)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog36: {e}")
@@ -749,13 +807,13 @@ async def catalog37(message: Message, state: FSMContext, bot: Bot):
         data = await state.get_data()
         date = get_date(data['selected_task_id'])[0]['deadline']
         text = message.text
-        if text == 'None':
+        if text.strip().lower() in ('none', 'отмена'):
             await message.answer("Операция отменена", reply_markup=keyboard_teacher_start.markup)
         else:
             await message.answer("Задание отправлено на дорешку, комментарий отправлен ученику", reply_markup=keyboard_teacher_start.markup)
             return_goback(data['selected_task_id'])
             await bot.send_message(chat_id=data['id_student'], text=f"Задание на {date} было отправлено на дорешку с комментарием преподавателя:\n\n{text}")
-            await state.set_state(CatalogTasksList.time)
+        await reset_flow(state)  # терминальный шаг «на дорешку» (§2)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog37: {e}")
         await message.answer('❌Ошибка, обратитесь в поддержку')

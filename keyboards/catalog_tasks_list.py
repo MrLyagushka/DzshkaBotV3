@@ -15,6 +15,10 @@ keyboard_catalog_tasks_list_student_pass.new_button('Добавить файл �
 keyboard_catalog_tasks_list_student_pass.new_button('Добавить текст к ответу', 2, callback_data='add_text_to_task')
 keyboard_catalog_tasks_list_student_pass.new_button('✅ Сдать', 3, callback_data='pass_task')
 
+# Отмена ожидания ввода (текст/файл) — обязательный сброс FSM (§2 плана)
+keyboard_catalog_tasks_list_cancel_input = Menu('inline', 1)
+keyboard_catalog_tasks_list_cancel_input.new_button('❌ Отменить', 1, callback_data='cancel_add_text')
+
 keyboard_catalog_tasks_list_student_pass_confirm = Menu('inline', 2)
 keyboard_catalog_tasks_list_student_pass_confirm.new_button('✅ Подтвердить сдачу', 1, callback_data='confirm_pass_task')
 keyboard_catalog_tasks_list_student_pass_confirm.new_button('❌ Отменить', 2, callback_data='cancel_pass_task')

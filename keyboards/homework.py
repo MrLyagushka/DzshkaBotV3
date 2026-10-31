@@ -1,4 +1,9 @@
 from utils.menu import Menu
+# Единая общая клавиатура подтверждения «✅ / ❌» (§2): различие экранов — по FSM-состоянию.
+from keyboards.catalog_tasks_list import (
+    keyboard_catalog_tasks_list_confirm_generic,
+    keyboard_time_selection,
+)
 
 keyboard_homework = Menu('inline', 3)
 keyboard_homework.new_button('Прикрепить файл', 1, callback_data='send_file')
@@ -8,34 +13,12 @@ keyboard_homework.new_button('Отправить задание', 3, callback_da
 keyboard_homework_add_file = Menu('inline', 1)
 keyboard_homework_add_file.new_button('Назад', 1, callback_data='cancel_to_homework')
 
-keyboard_homework_confirmation = Menu('inline', 2)
-keyboard_homework_confirmation.new_button('✅ Отправить', 1, callback_data='confirm_send')
-keyboard_homework_confirmation.new_button('❌ Отменить', 2, callback_data='confirm_cancel')
+# Подтверждение выдачи задания — те же кнопки 'confirm'/'cancel', что и в
+# каталоге; хендлер требует состояние Homework.confirm_send, поэтому
+# колбэк из старого сообщения другого экрана не срабатывает (§2).
+keyboard_homework_confirmation = keyboard_catalog_tasks_list_confirm_generic
 
-keyboard_time_selection = Menu('inline', 5)
-keyboard_time_selection.new_button('00', 1, callback_data='time_00')
-keyboard_time_selection.new_button('01', 1, callback_data='time_01')
-keyboard_time_selection.new_button('02', 1, callback_data='time_02')
-keyboard_time_selection.new_button('03', 1, callback_data='time_03')
-keyboard_time_selection.new_button('04', 1, callback_data='time_04')
-keyboard_time_selection.new_button('05', 1, callback_data='time_05')
-keyboard_time_selection.new_button('06', 2, callback_data='time_06')
-keyboard_time_selection.new_button('07', 2, callback_data='time_07')
-keyboard_time_selection.new_button('08', 2, callback_data='time_08')
-keyboard_time_selection.new_button('09', 2, callback_data='time_09')
-keyboard_time_selection.new_button('10', 2, callback_data='time_10')
-keyboard_time_selection.new_button('11', 2, callback_data='time_11')
-keyboard_time_selection.new_button('12', 3, callback_data='time_12')
-keyboard_time_selection.new_button('13', 3, callback_data='time_13')
-keyboard_time_selection.new_button('14', 3, callback_data='time_14')
-keyboard_time_selection.new_button('15', 3, callback_data='time_15')
-keyboard_time_selection.new_button('16', 3, callback_data='time_16')
-keyboard_time_selection.new_button('17', 3, callback_data='time_17')
-keyboard_time_selection.new_button('18', 4, callback_data='time_18')
-keyboard_time_selection.new_button('19', 4, callback_data='time_19')
-keyboard_time_selection.new_button('20', 4, callback_data='time_20')
-keyboard_time_selection.new_button('21', 4, callback_data='time_21')
-keyboard_time_selection.new_button('22', 4, callback_data='time_22')
-keyboard_time_selection.new_button('23', 4, callback_data='time_23')
-keyboard_time_selection.new_button('Назад', 5, callback_data='cancel_time_selection')
-
+# keyboard_time_selection импортирован из catalog_tasks_list: там он собран на
+# типизированном контракте TimeCb (§1); здесь оставлен псевдоним для старых импортов.
+__all__ = ['keyboard_homework', 'keyboard_homework_add_file',
+           'keyboard_homework_confirmation', 'keyboard_time_selection']

@@ -65,7 +65,7 @@ def images_to_pdf(image_bytes_list: list[bytes]) -> bytes:
     buffer.seek(0)
     return buffer.read()
 
-async def process_album_after_timeout(message: Message, state: FSMContext, bot: Bot, chat_id: int, expected_media_group_id: str, Homework):
+async def process_album_after_timeout(message: Message, state: FSMContext, bot: Bot, chat_id: int, expected_media_group_id: str, StatesGroup=None):
     """Фоновая функция: ждёт 2 сек, проверяет, закончился ли альбом, и конвертирует в PDF."""
     await asyncio.sleep(2)  # дать время на приход всех фото
 
@@ -113,8 +113,17 @@ async def process_album_after_timeout(message: Message, state: FSMContext, bot: 
         album_photos=[],
         waiting_for_album=False
     )
-    await bot.send_message(chat_id, "Файл успешно прикреплен")
-    await special_function(message, state)
+    try:
+        await bot.send_message(chat_id, "Файл успешно прикреплен")
+        await special_function(message, state)
+    except Exception as e:
+        logging.error(f"Ошибка в process_album_after_timeout: {e}")
+        await bot.send_message(chat_id, "❌ Ошибка при прикреплении файла")
+    finally:
+        if StatesGroup is not None:
+            # экран ожидания ввода закрываем в любом случае (§2): иначе следующий
+            # текст пользователя перехватит старый message-хендлер add_file_to_task
+            await state.set_state(StatesGroup.add_file_done)
 
 
 async def process_album_after_timeout2(message: Message, state: FSMContext, bot: Bot, chat_id: int, expected_media_group_id: str, Homework):

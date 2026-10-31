@@ -18,6 +18,17 @@ class Teacher():
         except Exception as e:
             print(f"Ошибка при выполнении функции get_statistics: {e}")
 
+    def is_student_of_teacher(self, id_student: int, id_teacher: int) -> bool:
+        try:
+            with connect(PATH_TO_DB_USERS) as db:
+                db.row_factory = Row
+                cursor = db.cursor()
+                cursor.execute("SELECT id FROM student WHERE id = ? AND id_teacher = ?", (id_student, id_teacher,))
+                return cursor.fetchone() is not None
+        except Exception as e:
+            print(f"Ошибка при выполнении функции is_student_of_teacher: {e}")
+            return False
+
 class Student():
     def get_statistics(self, id: int):
         try:

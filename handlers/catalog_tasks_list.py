@@ -466,7 +466,10 @@ async def catalog17(callback: CallbackQuery, state: FSMContext):
     try:
         await state.update_data(id_student=callback.data.split('_')[4])
         await callback.answer()
-        await callback.message.answer('Выберите', reply_markup=keyboard_catalog_tasks_list_teacher.markup)
+        student = Student()
+        student.get_statistics(int(callback.data.split('_')[4]))
+        name = student.name_student['name'] if student.name_student else 'Неизвестно'
+        await callback.message.answer(f'Ученик: {name} (id ученика: {callback.data.split("_")[4]})\nВыберите', reply_markup=keyboard_catalog_tasks_list_teacher.markup)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog17: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')

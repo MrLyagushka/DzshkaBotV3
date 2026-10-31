@@ -13,6 +13,18 @@ def add_student(id_student: int, id_teacher: int):
     except Exception as e:
         logging.error(f"Ошибка при выполнении функции add_student: {e}")
 
+def remove_student(id_student: int, id_teacher: int) -> bool:
+    try:
+        with connect(PATH_TO_DB_USERS) as db:
+            db.row_factory = Row
+            cursor = db.cursor()
+            cursor.execute("UPDATE student SET id_teacher = NULL WHERE id = ? AND id_teacher = ?", (id_student, id_teacher,))
+            db.commit()
+            return cursor.rowcount > 0
+    except Exception as e:
+        logging.error(f"Ошибка при выполнении функции remove_student: {e}")
+        return False
+
 def save_answer_task(id_task: int, answer_text: str, answer_file_name: str | None, answer_file_type: str | None, answer_file_data: bytes | None):
     try:
         with connect(PATH_TO_DB_TASK) as db:

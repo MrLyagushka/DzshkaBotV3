@@ -40,7 +40,7 @@ class DinamicKeyboard():
           или что-то подобноею После выбора режима и ввода через :  id , """
         dinamic_keyboard = Menu('inline', self.row+1)
 
-        if self.button_info.split('_')[0] == 'st':
+        if self.button_info.split('_')[0] in ['st', 'ds']:
             #Передать id учеников в массиве
             data = Teacher()
             data.get_statistics(int(self.button_info.split('_')[1]))
@@ -69,7 +69,7 @@ class DinamicKeyboard():
         count = 0
         while count < self.row * self.column and self.first_index + count < len(self.button_list):
             row = count // self.column
-            if self.button_info.split('_')[0] == 'st':
+            if self.button_info.split('_')[0] in ['st', 'ds']:
                 dinamic_keyboard.new_button(row_number=row+1, text=str(self.button_list[self.first_index+count]),# Т.к. в классе Menu, row_number идет от 0, для удобства пользования
                                         callback_data=f'callback_data_{self.button_info.split("_")[0]}_{self.button_list[self.first_index+count]}_{self.button_list2[self.first_index+count]}')
             elif self.button_info.split('_')[0] in ['tsa', 'tsd', 'tsp']:

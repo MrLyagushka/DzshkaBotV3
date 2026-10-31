@@ -6,15 +6,16 @@ import logging
 
 from keyboards.start import keyboard_teacher_start
 from keyboards.catalog_tasks_list import keyboard_catalog_tasks_list_student_pass
-from keyboards.catalog_main_menu import keyboard_catalog_main_menu
+from keyboards.catalog_main_menu import keyboard_catalog_main_menu, keyboard_catalog_main_menu_confirm
 from utils.users import Teacher, Student
 from utils.template import DinamicKeyboard
-from utils.catalog import add_student
+from utils.catalog import add_student, remove_student
 
 router_catalog_main_menu = Router()
 
 class CatalogMainMenu(StatesGroup):
     add_student = State()
+    delete_student_id = State()
 
 
 @router_catalog_main_menu.callback_query(F.data == 'list_students')
@@ -44,13 +45,67 @@ async def catalog2(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_catalog_main_menu.callback_query(F.data == 'delete_student')
-async def catalog2(callback: CallbackQuery, state: FSMContext):
+async def catalog_delete_student(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
-        await callback.message.answer('Пока в разработке')
+        teacher = Teacher()
+        teacher.get_statistics(callback.from_user.id)
+        if teacher.students_info:
+            await callback.message.answer('Выберите ученика для удаления', reply_markup=DinamicKeyboard(2,3,'no',0,f'ds_{callback.from_user.id}').generate_keyboard())
+            await state.set_state(CatalogMainMenu.delete_student_id)
+        else:
+            await callback.message.answer('У вас нет учеников.', reply_markup=keyboard_teacher_start.markup)
     except Exception as e:
-        logging.error(f"Ошибка в функции catalog2: {e}")
+        logging.error(f"Ошибка в функции catalog_delete_student: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+@router_catalog_main_menu.callback_query(F.data[:17] == 'callback_data_ds_')
+async def catalog_delete_student_confirm(callback: CallbackQuery, state: FSMContext):
+    try:
+        await callback.answer()
+        student_id = int(callback.data.split('_')[4])
+        await state.update_data(delete_student_id=student_id)
+        student = Student()
+        student.get_statistics(student_id)
+        name = student.name_student['name'] if student.name_student else 'Неизвестно'
+        await callback.message.answer(f'Вы уверены, что хотите удалить ученика "{name}" (id: {student_id}) из вашего списка?', reply_markup=keyboard_catalog_main_menu_confirm.markup)
+    except Exception as e:
+        logging.error(f"Ошибка в функции catalog_delete_student_confirm: {e}")
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+
+@router_catalog_main_menu.callback_query(F.data == 'confirm_delete_student')
+async def catalog_confirm_delete_student(callback: CallbackQuery, state: FSMContext):
+    try:
+        await callback.answer()
+        data = await state.get_data()
+        student_id = data.get('delete_student_id')
+        if student_id is None:
+            await callback.message.answer('❌Ученик для удаления не выбран', reply_markup=keyboard_teacher_start.markup)
+            await state.clear()
+            return
+        teacher = Teacher()
+        if not teacher.is_student_of_teacher(student_id, callback.from_user.id):
+            await callback.message.answer('❌Ученик с таким ID не найден в вашем списке', reply_markup=keyboard_teacher_start.markup)
+            await state.clear()
+            return
+        remove_student(student_id, callback.from_user.id)
+        await callback.message.answer(f'Ученик с id {student_id} успешно удален из вашего списка!', reply_markup=keyboard_teacher_start.markup)
+    except Exception as e:
+        logging.error(f"Ошибка в функции catalog_confirm_delete_student: {e}")
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+    finally:
+        await state.clear()
+
+@router_catalog_main_menu.callback_query(F.data == 'cancel_delete_student')
+async def catalog_cancel_delete_student(callback: CallbackQuery, state: FSMContext):
+    try:
+        await callback.answer()
+        await callback.message.answer('Удаление ученика отменено.', reply_markup=keyboard_catalog_main_menu.markup)
+    except Exception as e:
+        logging.error(f"Ошибка в функции catalog_cancel_delete_student: {e}")
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+    finally:
+        await state.clear()
 
 @router_catalog_main_menu.message(CatalogMainMenu.add_student)
 async def catalog3(message: Message, state: FSMContext):

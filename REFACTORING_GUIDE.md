@@ -61,6 +61,17 @@ users — `PATH_TO_DB_USERS`, tasks — `PATH_TO_DB_TASK`). Ключевые ф�
 Критерий готовности: ни одного `callback.data.split('_')` вне сервисных обработчиков; ни одного
 `F.data[:N] ==`.
 
+✅ **СТАТУС (выполнено):** создано `utils/callbacks.py` — `StudentCb(mode='view'|'del', student_id:int)`,
+`TaskCb(mode='a'|'d'|'p', task_id:int)`, `PageCb(direction, first_index, row, column, kind, mode)`
+(разделитель `:`, имена кнопок в payload не попадают); `filter(mode=...)` реализован через подкласс
+`CallbackQueryFilter` (в aiogram 3.22 `CallbackData.filter` принимает только magic-`rule`).
+`utils/template.py`: генерация кнопок через `.pack()`, текст кнопки «Имя (id)»
+(`student_button_text`), мёртвые ветки `tt`/`MyCallbackData` удалены, пагинация — `PageCb`.
+Переведены хендлеры: `homework1`, `catalog16/delete/confirm`, `catalog17`, `catalog6/15/19/21/29/31`,
+`service_handlers.on_the_what`. Оставшиеся `split('_')` — только разбор статичных кнопок времени
+`time_HH` (без пользовательских данных, безопасно). Round-trip тесты фильтров пройдены,
+`main.py` импортируется со всеми роутерами.
+
 ---
 
 ## 2. FSM: состояния как экраны + обязательный сброс

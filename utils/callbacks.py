@@ -7,13 +7,18 @@ split('_')[N] ломался, а префиксы 'st' и 'ds' пересека�
 (F.data[:16] == 'callback_data_st' матчил и 'callback_data_ds_...').
 
 Здесь каждый контракт описан классом aiogram CallbackData: сериализация
-(pack) и разбор (parse / filter(...)) делаются библиотекой, имена кнопок
+(pack) и разбор (filter(...)) делаются библиотекой, имена кнопок
 в payload не участвуют, id всегда int.
-"""
-from typing import Literal
 
-from aiogram.filters import BaseFilter, FilterObject
-from aiogram.filters.callback_data import CallbackData
+Использование в хендлерах:
+    @router.callback_query(StudentCb.filter(mode='del'))
+    async def handler(call, callback_data: StudentCb):
+        student_id = callback_data.student_id
+"""
+from typing import Any, Dict, Literal, Optional, Union
+
+from aiogram.filters.callback_data import CallbackData, CallbackQueryFilter
+from aiogram.types import CallbackQuery
 
 # Режимы списков учеников: просмотр заданий / отвязка(удаление) из «Список учеников»
 StudentMode = Literal['view', 'del']
@@ -21,35 +26,45 @@ StudentMode = Literal['view', 'del']
 TaskMode = Literal['a', 'd', 'p']
 
 
-class _ModeFilter(BaseFilter):
-    """Фильтр по значению поля `mode` у уже распарсенного контракта."""
+class _CbModeFilter(CallbackQueryFilter):
+    """CallbackQueryFilter + дополнительная проверка поля `mode`."""
 
-    def __init__(self, callback_cls, mode: str):
-        self.callback_cls = callback_cls
-        self.mode = mode
+    __slots__ = ('callback_data', 'rule', 'expected_mode')
 
-    async def __call__(self, callback_data=None, **kwargs) -> bool:
-        if not isinstance(callback_data, self.callback_cls):
+    def __init__(self, *, callback_data, expected_mode: str, rule=None):
+        super().__init__(callback_data=callback_data, rule=rule)
+        self.expected_mode = expected_mode
+
+    async def __call__(self, query: CallbackQuery) -> Union[Literal[False], Dict[str, Any]]:
+        result = await super().__call__(query)
+        if result is False:
             return False
-        return callback_data.mode == self.mode
+        if result['callback_data'].mode != self.expected_mode:
+            return False
+        return result
+
+    def __str__(self) -> str:
+        return self._signature_to_string(
+            callback_data=self.callback_data,
+            rule=self.rule,
+            expected_mode=self.expected_mode,
+        )
 
 
 class StudentCb(CallbackData, prefix='stu'):
     """Кнопка «ученик» в динамическом списке.
 
-    mode='view' — выбрать ученика (обработчик catalog17),
-    mode='del'  — выбрать ученика для отвязки/удаления (catalog_delete_student_confirm).
+    mode='view' — выбрать ученика (просмотр заданий),
+    mode='del'  — выбрать ученика для отвязки/удаления (подтверждение).
     """
     mode: StudentMode
     student_id: int
 
     @classmethod
-    def filter(cls, mode: str | None = None) -> FilterObject:
-        base = super().filter()
+    def filter(cls, mode: Optional[str] = None, rule=None):  # type: ignore[override]
         if mode is None:
-            return base
-        base.factory += _ModeFilter(cls, mode)
-        return base
+            return super().filter(rule=rule)
+        return _CbModeFilter(callback_data=cls, expected_mode=mode, rule=rule)
 
 
 class TaskCb(CallbackData, prefix='tsk'):
@@ -63,12 +78,10 @@ class TaskCb(CallbackData, prefix='tsk'):
     task_id: int
 
     @classmethod
-    def filter(cls, mode: str | None = None) -> FilterObject:
-        base = super().filter()
+    def filter(cls, mode: Optional[str] = None, rule=None):  # type: ignore[override]
         if mode is None:
-            return base
-        base.factory += _ModeFilter(cls, mode)
-        return base
+            return super().filter(rule=rule)
+        return _CbModeFilter(callback_data=cls, expected_mode=mode, rule=rule)
 
 
 class PageCb(CallbackData, prefix='pg'):
@@ -77,11 +90,8 @@ class PageCb(CallbackData, prefix='pg'):
     first_index: int
     row: int
     column: int
-    is_always_bigger: Literal['yes', 'no']
     kind: Literal['students', 'tasks']
-    owner_id: int
     mode: str  # 'view' | 'del' | TaskMode
-    total: int
 
 
 def truncate(text: str, limit: int = 20) -> str:

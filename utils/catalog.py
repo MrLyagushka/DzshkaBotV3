@@ -38,24 +38,37 @@ def add_student(id_student: int, id_teacher: int) -> str:
         logging.error(f"Ошибка при выполнении функции add_student: {e}")
         return 'error'
 
-def remove_student(id_student: int, id_teacher: int) -> bool:
+def remove_student(id_student: int, id_teacher: int) -> str:
+    """Отвязка ученика от учителя (§3.5, унификация контракта — §5).
+
+    Возвращает статус вместо молчаливого True/False:
+      'ok'        — ученик отвязан;
+      'not_found' — ученик не найден ИЛИ уже привязан к другому учителю
+                    (rowcount == 0 у UPDATE ... WHERE id = ? AND id_teacher = ?);
+      'error'     — сбой БД (отличается от 'not_found', чтобы хендлер мог
+                    ответить «обратитесь в поддержку», а не «уже удалён»).
+    """
     try:
         with connect(PATH_TO_DB_USERS) as db:
             db.row_factory = Row
             cursor = db.cursor()
             cursor.execute("UPDATE student SET id_teacher = NULL WHERE id = ? AND id_teacher = ?", (id_student, id_teacher,))
             db.commit()
-            return cursor.rowcount > 0
+            return 'ok' if cursor.rowcount > 0 else 'not_found'
     except Exception as e:
         logging.error(f"Ошибка при выполнении функции remove_student: {e}")
-        return False
+        return "error"
 
-def save_answer_task(id_task: int, answer_text: str, answer_file_name: str | None, answer_file_type: str | None, answer_file_data: bytes | None, id_student: int | None = None) -> bool:
-    """Сохранение ответа ученика (§3.5).
+def save_answer_task(id_task: int, answer_text: str, answer_file_name: str | None, answer_file_type: str | None, answer_file_data: bytes | None, id_student: int | None = None) -> str:
+    """Сохранение ответа ученика (§3.5, унификация контракта — §5).
 
     `id_student` — ожидаемый владелец задания: попадает в WHERE, поэтому сдача
     чужого задания (кнопкой со старого сообщения) не возможна даже при обходе
-    проверок хендлера. Возвращает True, если запись реально обновлена.
+    проверок хендлера. Возвращает статус:
+      'ok'        — ответ сохранён;
+      'not_found' — задание не найдено или принадлежит другому ученику
+                    (rowcount == 0);
+      'error'     — сбой БД.
     """
     try:
         with connect(PATH_TO_DB_TASK) as db:
@@ -72,10 +85,10 @@ def save_answer_task(id_task: int, answer_text: str, answer_file_name: str | Non
                     (answer_text, answer_file_name, answer_file_type, answer_file_data, -1, id_task)
                 )
             db.commit()
-            return cursor.rowcount > 0
+            return 'ok' if cursor.rowcount > 0 else 'not_found'
     except Exception as e:
         logging.error(f"Ошибка при выполнении функции save_answer_task: {e}")
-        return False
+        return "error"
 
 def get_id_teacher(id_task: int):
     try:
@@ -91,12 +104,16 @@ def get_id_teacher(id_task: int):
         logging.error(f"Ошибка при выполнении функции get_id_teacher: {e}")
         return None
     
-def set_pass(id_task: int, id_teacher: int | None = None):
-    """Отметка «решено» (§3.5).
+def set_pass(id_task: int, id_teacher: int | None = None) -> dict:
+    """Отметка «решено» (§3.5, унификация контракта — §5).
 
     `id_teacher` — ожидаемый владелец задания (в WHERE): чужое задание не отметить.
-    Возвращает список строк (для обратной совместимости с [0]-доступом хендлеров);
-    [] — если задание не найдено или отказано в доступе.
+    Возвращает словарь {'status': ..., 'task': Row|None} вместо списка с
+    молчаливыми [], None (чтобы вызывающий код различал причины отказа):
+      {'status': 'ok', 'task': <строка>}    — отмечено, строка актуальна;
+      {'status': 'not_found', 'task': None} — задание не найдено или
+                                              принадлежит другому учителю;
+      {'status': 'error', 'task': None}     — сбой БД.
     """
     try:
         with connect(PATH_TO_DB_TASK) as db:
@@ -108,12 +125,15 @@ def set_pass(id_task: int, id_teacher: int | None = None):
                 cursor.execute("UPDATE task SET is_active = ? WHERE id = ?", (0, id_task,))
             db.commit()
             if cursor.rowcount == 0 and id_teacher is not None:
-                return []
+                return {'status': 'not_found', 'task': None}
             cursor.execute("SELECT id_student, deadline, marks FROM task WHERE id = ?", (id_task,))
-            return cursor.fetchall()
+            row = cursor.fetchone()
+            if row is None:
+                return {'status': 'not_found', 'task': None}
+            return {'status': 'ok', 'task': row}
     except Exception as e:
         logging.error(f"Ошибка при выполнении функции set_pass: {e}")
-        return None
+        return {'status': 'error', 'task': None}
     
 def set_marks(id_task: int, mark: int, id_teacher: int | None = None) -> bool:
     """Выставление оценки (§3.5). `id_teacher` — ожидаемый владелец (в WHERE)."""

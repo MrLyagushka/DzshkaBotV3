@@ -29,9 +29,9 @@ def reset_name(id: int, name: str):
         with connect(PATH_TO_DB_USERS) as db:
             db.row_factory = Row
             cursor = db.cursor()
-            if id in [x['id'] for x in is_teacher()]:
+            if is_teacher(id):
                 cursor.execute("UPDATE teacher SET name = ? WHERE id = ?", (name, id))
-            elif id in [x['id'] for x in is_student()]:
+            elif is_student(id):
                 cursor.execute("UPDATE student SET name = ? WHERE id = ?", (name, id))
     except Exception as e:
         logging.error(f"Ошибка при выполнении функции reset_name: {e}")
@@ -41,9 +41,9 @@ def reset_registration(id: int):
         with connect(PATH_TO_DB_USERS) as db:
             db.row_factory = Row
             cursor = db.cursor()
-            if id in [x['id'] for x in is_teacher()]:
+            if is_teacher(id):
                 cursor.execute("DELETE FROM teacher WHERE id = ?", (id,))
-            elif id in [x['id'] for x in is_student()]:
+            elif is_student(id):
                 cursor.execute("DELETE FROM student WHERE id = ?", (id,))
     except Exception as e:
         logging.error(f"Ошибка при выполнении функции reset_registration: {e}")

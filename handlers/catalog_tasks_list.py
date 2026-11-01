@@ -474,8 +474,12 @@ async def special_function_teacher(callback: CallbackQuery, state: FSMContext, b
             documents.append((BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name']), 'Файл к ответу'))
         if selected_task[0]['marks'] != None:
             if callback_data == 'set_marks_pased_task':
-                data = set_pass((await state.get_data())['selected_task_id'])[0]
-                await bot.send_message(data['id_student'], f'Вам изменили оценку на {data["marks"]} по дз на {data["deadline"]}')
+                # §5: set_pass возвращает {'status','task'} — различаем отказ и сбой БД
+                res = set_pass((await state.get_data())['selected_task_id'])
+                if res['status'] == 'ok' and res['task'] is not None:
+                    await bot.send_message(res['task']['id_student'], f'Вам изменили оценку на {res["task"]["marks"]} по дз на {res["task"]["deadline"]}')
+                elif res['status'] == 'error':
+                    logging.error("set_pass (изменение оценки) вернул ошибку БД")
                 text = f"Дедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}"
                 markup = keyboard_catalog_tasks_list_teacher_check_passed_task.markup
             elif callback_data == 'set_marks':
@@ -566,7 +570,13 @@ async def catalog12(callback: CallbackQuery, state: FSMContext, bot: Bot):
                 answer_file_data=data['file_data'],
                 id_student=callback.from_user.id  # §3.5: владелец в WHERE — чужая запись не обновится
             )
-            if not saved:
+            if saved == 'error':
+                # §5: сбой БД отличается от «задание изменилось»
+                await callback.message.answer('❌Ошибка, обратитесь в поддержку',
+                                              reply_markup=keyboard_student_start.markup)
+                await reset_flow(state)
+                return
+            if saved != 'ok':
                 await callback.message.answer("Задание не найдено или уже изменено, начните заново",
                                               reply_markup=keyboard_student_start.markup)
                 await reset_flow(state)
@@ -850,11 +860,15 @@ async def catalog26(callback: CallbackQuery, state: FSMContext, bot: Bot):
                               reply_markup=keyboard_teacher_start.markup)
         else:
             result = set_pass(data['selected_task_id'], id_teacher=callback.from_user.id)
-            if not result:
+            # §5: различаем «не найдено/чужое» и сбой БД (раньше [] и None молча сливались)
+            if result['status'] == 'error':
+                await callback.message.answer('❌Ошибка, обратитесь в поддержку',
+                                              reply_markup=keyboard_teacher_start.markup)
+            elif result['status'] != 'ok' or result['task'] is None:
                 await callback.message.answer('❌Задание не найдено',
                                               reply_markup=keyboard_teacher_start.markup)
             else:
-                task = result[0]
+                task = result['task']
                 await show_screen(callback, 'Задание отмечено как завершенное',
                                   reply_markup=keyboard_teacher_start.markup)
                 mark_text = f"Вам выставили оценку {task['marks']}" if task['marks'] is not None \

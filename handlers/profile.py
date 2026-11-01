@@ -21,13 +21,13 @@ router_profile = Router()
 async def profile1(message: Message, state: FSMContext):
     try:
         information = get_user_profile(message.from_user.id)
-        if message.from_user.id in [x['id'] for x in is_teacher()]:
+        if is_teacher(message.from_user.id):
             await message.answer(f"Привет, {information['teacher']['name']}", reply_markup=keyboard_profile_teacher.markup)
-        elif message.from_user.id in [x['id'] for x in is_student()]:
+        elif is_student(message.from_user.id):
             await message.answer(f"Привет, {information['student']['name']}\nТвой id: {information['student']['id']}", reply_markup=keyboard_profile_student.markup)
     except Exception as e:
         logging.error(f"Ошибка в функции profile1: {e}")
-        message.answer('❌Ошибка, обратитесь в поддержку')
+        await message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_profile.callback_query(F.data == 'reset_name')
 async def profile2(callback: CallbackQuery, state: FSMContext):
@@ -37,21 +37,21 @@ async def profile2(callback: CallbackQuery, state: FSMContext):
         await state.set_state(Profile.first)
     except Exception as e:
         logging.error(f"Ошибка в функции profile2: {e}")
-        callback.message.answer('❌Ошибка, обратитесь в поддержку')
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_profile.message(Profile.first)
 async def profile3(message: Message, state: FSMContext):
     try:
         reset_name(message.from_user.id, message.text)
         information = get_user_profile(message.from_user.id)
-        if message.from_user.id in [x['id'] for x in is_teacher()]:
+        if is_teacher(message.from_user.id):
             await message.answer(f"Имя успешно изменено на {information['teacher']['name']}", reply_markup=keyboard_teacher_start.markup)
-        elif message.from_user.id in [x['id'] for x in is_student()]:
+        elif is_student(message.from_user.id):
             await message.answer(f"Имя успешно изменено на {information['student']['name']}", reply_markup=keyboard_student_start.markup)
         await state.clear()
     except Exception as e:
         logging.error(f"Ошибка в функции profile3: {e}")
-        message.answer('❌Ошибка, обратитесь в поддержку')
+        await message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_profile.callback_query(F.data == 'reset_registration')
 async def profile4(callback: CallbackQuery, state: FSMContext):
@@ -63,4 +63,4 @@ async def profile4(callback: CallbackQuery, state: FSMContext):
         await state.clear()
     except Exception as e:
         logging.error(f"Ошибка в функции profile4: {e}")
-        callback.message.answer('❌Ошибка, обратитесь в поддержку')
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')

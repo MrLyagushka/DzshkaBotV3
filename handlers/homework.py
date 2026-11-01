@@ -41,7 +41,7 @@ async def homework0(message: Message, state: FSMContext):
             await message.answer('У вас нет учеников. Прикрепите ученика через "Список учеников"->"Добавить ученика"', reply_markup=keyboard_teacher_start.markup)
     except Exception as e:
         logging.error(f"Ошибка в функции homework0: {e}")
-        message.answer('❌Ошибка, обратитесь в поддержку')
+        await message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_homework.callback_query(StudentCb.filter(mode='view'), Homework.first)
 async def homework1(callback: CallbackQuery, state: FSMContext, callback_data: StudentCb):

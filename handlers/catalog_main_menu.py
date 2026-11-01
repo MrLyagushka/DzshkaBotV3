@@ -111,9 +111,12 @@ async def catalog_confirm_delete_student(callback: CallbackQuery, state: FSMCont
             await callback.message.answer('❌Ученик с таким ID не найден в вашем списке', reply_markup=keyboard_teacher_start.markup)
             await state.clear()
             return
-        # remove_student делает UPDATE ... WHERE id = ? AND id_teacher = ? (§3.5),
-        # поэтому rowcount==0 означает «ученик уже отвязался» — молча не удаляем
-        if not remove_student(student_id, callback.from_user.id):
+        # remove_student делает UPDATE ... WHERE id = ? AND id_teacher = ? (§3.5)
+        # и возвращает статус (§5): 'not_found' — ученик уже отвязался, 'error' — сбой БД
+        status = remove_student(student_id, callback.from_user.id)
+        if status == 'error':
+            await callback.message.answer('❌Ошибка, обратитесь в поддержку', reply_markup=keyboard_teacher_start.markup)
+        elif status != 'ok':
             await callback.message.answer('Ученик уже удалён или данные изменились, начните заново',
                                           reply_markup=keyboard_teacher_start.markup)
         else:

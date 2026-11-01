@@ -5,6 +5,8 @@ import asyncio
 import logging
 
 from aiogram import Dispatcher, Bot
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 from config import BOT_TOKEN, ADMIN_ID
 from handlers.start import router_start
 from handlers.profile import router_profile
@@ -18,12 +20,28 @@ from handlers.catalog_tasks_list import router_catalog_tasks_list
 from utils.reminders import send_reminder_3d, send_reminder_1d, send_overdue_homework_notifications
 from utils.backup import backup_scheduler, create_backup
 
-bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+_bot: Bot | None = None
+
+
+def get_bot() -> Bot:
+    """§5: ленивая инициализация Bot.
+
+    Раньше `bot = Bot(token=BOT_TOKEN)` выполнялся на импорте main.py: любой
+    импорт модуля падал с TokenValidationError без валидного токена (и при
+    тестировании хендлеров), а session нельзя было корректно закрыть.
+    Создаём один раз при первом обращении из main()/планировщика.
+    """
+    global _bot
+    if _bot is None:
+        _bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    return _bot
 
 scheduler = AsyncIOScheduler(timezone=pytz.timezone("Europe/Moscow"))
 
 async def main():
+    bot = get_bot()
     # Подключаем роутеры
     dp.include_routers(
         router_start,

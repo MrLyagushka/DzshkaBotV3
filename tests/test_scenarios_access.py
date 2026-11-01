@@ -12,7 +12,7 @@ import asyncio
 import sqlite3
 
 import pytest
-from aiogram.types import CallbackQuery, Chat, FromUser, Message
+from aiogram.types import CallbackQuery, Chat, User, Message
 
 from conftest import init_test_dbs, insert_user, insert_task
 
@@ -81,7 +81,7 @@ class RecMessage:
 def make_cb(user_id: int, data: str):
     msg = RecMessage()
     cb = CallbackQuery.model_construct(
-        id='1', from_user=FromUser.model_construct(id=user_id, is_bot=False),
+        id='1', from_user=User.model_construct(id=user_id, is_bot=False),
         message=msg, chat_instance='ci', data=data)
     cb.message = msg
     cb.answered = []

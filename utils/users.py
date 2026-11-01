@@ -52,3 +52,20 @@ class Student():
                 self.homework_active = cursor.fetchall()
         except Exception as e:
             print(f"Ошибка при выполнении функции get_students_tasks: {e}")
+
+    _TASK_COLUMNS = ("id, id_teacher, id_student, text, file_name, file_type, file_data, "
+                     "deadline, is_active, answer_text, answer_file_name, answer_file_type, "
+                     "answer_file_data, marks")
+
+    def get_task_by_id(self, id_task: int):
+        """Строка задачи по id (для проверок доступа, §3). None — если задачи нет."""
+        try:
+            with connect(PATH_TO_DB_TASK) as db:
+                db.row_factory = Row
+                cursor = db.cursor()
+                cursor.execute(f"SELECT {self._TASK_COLUMNS} FROM task WHERE id = ?", (id_task,))
+                row = cursor.fetchone()
+                return dict(row) if row is not None else None
+        except Exception as e:
+            print(f"Ошибка при выполнении функции get_task_by_id: {e}")
+            return None

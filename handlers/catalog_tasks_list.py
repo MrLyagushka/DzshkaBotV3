@@ -16,6 +16,9 @@ from utils.catalog import add_student, save_answer_task, get_id_teacher, set_pas
 from utils.users import Student, Teacher
 from utils.template import DinamicKeyboard
 from utils.callbacks import StudentCb, TaskCb, MarkCb, TimeCb
+from utils.access import (AccessError, check_ctx_owner, ensure_student_of_teacher,
+                          ensure_task_for_student, ensure_task_for_teacher,
+                          get_task_row, stale_session)
 from utils.images_to_pdf import process_album_after_timeout
 
 router_catalog_tasks_list = Router()
@@ -81,20 +84,22 @@ async def catalog6(callback: CallbackQuery, state: FSMContext, callback_data: Ta
     try:
         await callback.answer()
         task_id = callback_data.task_id
-        await state.update_data(selected_task_id=task_id)
+        # §3: задание берём ТОЛЬКО из списка текущего пользователя (callback.from_user.id);
+        # кнопка со старого сообщения с чужим task_id даст "Задание не найдено".
         student = Student()
         student.get_students_tasks(callback.from_user.id)
         selected_task = [task for task in student.homework_active if task['id'] == task_id]
-        if selected_task:
-            teacher = Teacher()
-            teacher.get_statistics(selected_task[0]['id_teacher'])
-            if selected_task[0]['file_name'] != None:
-                document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
-                await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
-            await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}", reply_markup=keyboard_catalog_tasks_list_student_pass.markup)
-            await state.update_data(added_text=None, file_name=None, file_type=None, file_data=None)
-        else:
+        if not selected_task:
             await callback.message.answer("Задание не найдено.")
+            return
+        await state.update_data(selected_task_id=task_id, ctx_owner=callback.from_user.id)
+        teacher = Teacher()
+        teacher.get_statistics(selected_task[0]['id_teacher'])
+        if selected_task[0]['file_name'] != None:
+            document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
+            await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
+        await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}", reply_markup=keyboard_catalog_tasks_list_student_pass.markup)
+        await state.update_data(added_text=None, file_name=None, file_type=None, file_data=None)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog6: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -119,7 +124,11 @@ async def catalog14(callback: CallbackQuery, state: FSMContext):
 @router_catalog_tasks_list.callback_query(F.data == 'view_active_tasks_teacher')
 async def catalog18(callback: CallbackQuery, state: FSMContext):
     try:
-        id_student = (await state.get_data())['id_student']
+        data = await state.get_data()
+        # §3: id_student из FSM принадлежит тому, кто его записал (catalog17)
+        check_ctx_owner(data, callback.from_user.id)
+        ensure_student_of_teacher(data['id_student'], callback.from_user.id)
+        id_student = int(data['id_student'])
         student = Student()
         student.get_students_tasks(id_student)
         await callback.answer()
@@ -128,6 +137,10 @@ async def catalog18(callback: CallbackQuery, state: FSMContext):
             await state.set_state(CatalogTasksList.view_active_tasks_teacher)
         else:
             await callback.message.answer("Нет активных заданий.")
+    except AccessError as e:
+        await callback.answer()
+        await callback.message.answer(e.user_message)
+        await state.clear()
     except Exception as e:
         logging.error(f"Ошибка в функции catalog18: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -136,7 +149,11 @@ async def catalog18(callback: CallbackQuery, state: FSMContext):
 @router_catalog_tasks_list.callback_query(F.data == 'view_passed_tasks_teacher')
 async def catalog20(callback: CallbackQuery, state: FSMContext):
     try:
-        id_student = (await state.get_data())['id_student']
+        data = await state.get_data()
+        # §3: id_student из FSM принадлежит тому, кто его записал (catalog17)
+        check_ctx_owner(data, callback.from_user.id)
+        ensure_student_of_teacher(data['id_student'], callback.from_user.id)
+        id_student = int(data['id_student'])
         student = Student()
         student.get_students_tasks(id_student)
         await callback.answer()
@@ -145,6 +162,10 @@ async def catalog20(callback: CallbackQuery, state: FSMContext):
             await state.set_state(CatalogTasksList.view_passed_tasks_teacher)
         else:
             await callback.message.answer("Нет завершенных заданий.")
+    except AccessError as e:
+        await callback.answer()
+        await callback.message.answer(e.user_message)
+        await state.clear()
     except Exception as e:
         logging.error(f"Ошибка в функции catalog20: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -169,7 +190,11 @@ async def catalog28(callback: CallbackQuery, state: FSMContext):
 @router_catalog_tasks_list.callback_query(F.data == 'view_check_tasks_teacher')
 async def catalog30(callback: CallbackQuery, state: FSMContext):
     try:
-        id_student = (await state.get_data())['id_student']
+        data = await state.get_data()
+        # §3: id_student из FSM принадлежит тому, кто его записал (catalog17)
+        check_ctx_owner(data, callback.from_user.id)
+        ensure_student_of_teacher(data['id_student'], callback.from_user.id)
+        id_student = int(data['id_student'])
         student = Student()
         student.get_students_tasks(id_student)
         await callback.answer()
@@ -178,6 +203,10 @@ async def catalog30(callback: CallbackQuery, state: FSMContext):
             await state.set_state(CatalogTasksList.view_check_tasks_teacher)
         else:
             await callback.message.answer("Нет заданий на проверке.")
+    except AccessError as e:
+        await callback.answer()
+        await callback.message.answer(e.user_message)
+        await state.clear()
     except Exception as e:
         logging.error(f"Ошибка в функции catalog30: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -367,9 +396,12 @@ async def special_function(message: Message, state: FSMContext):
 
 
 async def special_function_callback_not_callback(callback: CallbackQuery, state: FSMContext):
-    task_id = (await state.get_data())['selected_task_id']
+    data = await state.get_data()
+    # §3: экран перерисовываем только владельцу FSM-контекста; чужой ctx_owner — отказ.
+    check_ctx_owner(data, callback.from_user.id)
+    task_id = data['selected_task_id']
     student = Student()
-    student.get_students_tasks((await state.get_data())['id_student'])
+    student.get_students_tasks(int(data['id_student']))
     selected_task = [task for task in student.homework_active if task['id'] == task_id]
     if selected_task:
         teacher = Teacher()
@@ -463,29 +495,39 @@ async def catalog12(callback: CallbackQuery, state: FSMContext, bot: Bot):
                                           reply_markup=keyboard_student_start.markup)
             await reset_flow(state)
             return
+        # §3: сдавать можно только СВОЁ задание: сверка ctx_owner + владельца задачи.
+        check_ctx_owner(data, callback.from_user.id)
+        task_row = ensure_task_for_student(get_task_row(data['selected_task_id']), callback.from_user.id)
         if data.get('added_text') == None:
             await callback.message.answer('Прикрепите текст ответа сначала')
             await special_function_callback(callback, state)
             await state.set_state(CatalogTasksList.view_active_tasks_student)
-        elif get_is_active((await state.get_data())['selected_task_id']) != 1:
+        elif get_is_active(task_row['id']) != 1:
             await callback.message.answer("Задание уже сдано", reply_markup=keyboard_student_start.markup)
             await reset_flow(state)
         else:
-            await callback.message.answer('Задание сдано преподавателю. Ожидайте проверки.', reply_markup=keyboard_student_start.markup)
-            save_answer_task(
-                id_task=(await state.get_data())['selected_task_id'],
-                answer_text=(await state.get_data())['added_text'],
-                answer_file_name=(await state.get_data())['file_name'],
-                answer_file_type=(await state.get_data())['file_type'],
-                answer_file_data=(await state.get_data())['file_data']
+            saved = save_answer_task(
+                id_task=task_row['id'],
+                answer_text=data['added_text'],
+                answer_file_name=data['file_name'],
+                answer_file_type=data['file_type'],
+                answer_file_data=data['file_data'],
+                id_student=callback.from_user.id  # §3.5: владелец в WHERE — чужая запись не обновится
             )
+            if not saved:
+                await callback.message.answer("Задание не найдено или уже изменено, начните заново",
+                                              reply_markup=keyboard_student_start.markup)
+                await reset_flow(state)
+                return
+            await callback.message.answer('Задание сдано преподавателю. Ожидайте проверки.', reply_markup=keyboard_student_start.markup)
             student = Student()
             student.get_statistics(callback.from_user.id)
-            student.get_students_tasks(callback.from_user.id)
-            date = [x for x in student.homework_active if x['id'] == (await state.get_data())['selected_task_id']]
-            date = date[0]['deadline']
-            await bot.send_message(get_id_teacher((await state.get_data())['selected_task_id']), f"Ученик {student.name_student['name']} сдал(а) задание, заданное на {date}. Проверьте его.")
+            date = task_row['deadline']
+            await bot.send_message(get_id_teacher(task_row['id']), f"Ученик {student.name_student['name']} сдал(а) задание, заданное на {date}. Проверьте его.")
             await reset_flow(state)  # терминальный шаг флоу сдачи (§2)
+    except AccessError as e:
+        await callback.message.answer(e.user_message)
+        await reset_flow(state)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog12: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -511,27 +553,28 @@ async def catalog15(callback: CallbackQuery, state: FSMContext, callback_data: T
     try:
         await callback.answer()
         task_id = callback_data.task_id
-        await state.update_data(selected_task_id=task_id)
+        # §3: только задачи текущего ученика (см. catalog6)
         student = Student()
         student.get_students_tasks(callback.from_user.id)
         selected_task = [task for task in student.homework_active if task['id'] == task_id]
-        if selected_task:
-            teacher = Teacher()
-            teacher.get_statistics(selected_task[0]['id_teacher'])
-            if selected_task[0]['file_name'] != None:
-                document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
-                await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
-            if selected_task[0]['answer_file_name'] != None:
-                document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
-                await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
-            if selected_task[0]['marks'] != None:
-                await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\n\nОценка: {selected_task[0]['marks']}")
-            else:
-                await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}")
-
-            await state.update_data(added_text=None, file_name=None, file_type=None, file_data=None)
-        else:
+        if not selected_task:
             await callback.message.answer("Задание не найдено.")
+            return
+        await state.update_data(selected_task_id=task_id, ctx_owner=callback.from_user.id)
+        teacher = Teacher()
+        teacher.get_statistics(selected_task[0]['id_teacher'])
+        if selected_task[0]['file_name'] != None:
+            document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
+            await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
+        if selected_task[0]['answer_file_name'] != None:
+            document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
+            await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
+        if selected_task[0]['marks'] != None:
+            await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\n\nОценка: {selected_task[0]['marks']}")
+        else:
+            await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}")
+
+        await state.update_data(added_text=None, file_name=None, file_type=None, file_data=None)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog15: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -541,12 +584,19 @@ async def catalog15(callback: CallbackQuery, state: FSMContext, callback_data: T
 async def catalog17(callback: CallbackQuery, state: FSMContext, callback_data: StudentCb):
     try:
         await reset_flow(state)  # новый флоу: не переносим selected_task_id/черновики прошлого экрана (§2)
-        await state.update_data(id_student=callback_data.student_id)
+        # §3: ученик обязан состоять в списке ТЕКУЩЕГО учителя — иначе кнопка со
+        # старого сообщения даёт доступ к чужому ученику.
+        ensure_student_of_teacher(callback_data.student_id, callback.from_user.id)
+        await state.update_data(id_student=callback_data.student_id, ctx_owner=callback.from_user.id)
         await callback.answer()
         student = Student()
         student.get_statistics(callback_data.student_id)
         name = student.name_student['name'] if student.name_student else 'Неизвестно'
         await callback.message.answer(f'Ученик: {name} (id ученика: {callback_data.student_id})\nВыберите', reply_markup=keyboard_catalog_tasks_list_teacher.markup)
+    except AccessError as e:
+        await callback.answer()
+        await callback.message.answer(e.user_message)
+        await state.clear()
     except Exception as e:
         logging.error(f"Ошибка в функции catalog17: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -557,20 +607,28 @@ async def catalog19(callback: CallbackQuery, state: FSMContext, callback_data: T
     try:
         await callback.answer()
         task_id = callback_data.task_id
-        id_student = (await state.get_data())['id_student']
-        await state.update_data(selected_task_id=task_id)
+        data = await state.get_data()
+        # §3: сверяем FSM-контекст с текущим учителем и составом его списка
+        check_ctx_owner(data, callback.from_user.id)
+        id_student = int(data['id_student'])
+        ensure_student_of_teacher(id_student, callback.from_user.id)
+        # §3: задание берём только из списка выбранного ученика — чужой task_id отклоняется
         student = Student()
         student.get_students_tasks(id_student)
         selected_task = [task for task in student.homework_active if task['id'] == task_id]
-        if selected_task:
-            teacher = Teacher()
-            teacher.get_statistics(selected_task[0]['id_teacher'])
-            if selected_task[0]['file_name'] != None:
-                document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
-                await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
-            await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}", reply_markup=keyboard_catalog_tasks_list_teacher_check.markup)
-        else:
+        if not selected_task:
             await callback.message.answer("Задание не найдено.")
+            return
+        await state.update_data(selected_task_id=task_id)
+        teacher = Teacher()
+        teacher.get_statistics(selected_task[0]['id_teacher'])
+        if selected_task[0]['file_name'] != None:
+            document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
+            await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
+        await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}", reply_markup=keyboard_catalog_tasks_list_teacher_check.markup)
+    except AccessError as e:
+        await callback.message.answer(e.user_message)
+        await state.clear()
     except Exception as e:
         logging.error(f"Ошибка в функции catalog19: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -580,28 +638,35 @@ async def catalog19(callback: CallbackQuery, state: FSMContext, callback_data: T
 async def catalog21(callback: CallbackQuery, state: FSMContext, callback_data: TaskCb):
     try:
         await callback.answer()
-        id_student = (await state.get_data())['id_student']
+        data = await state.get_data()
+        # §3: сверяем FSM-контекст с текущим учителем и составом его списка
+        check_ctx_owner(data, callback.from_user.id)
+        id_student = int(data['id_student'])
+        ensure_student_of_teacher(id_student, callback.from_user.id)
         task_id = callback_data.task_id
-        await state.update_data(selected_task_id=task_id)
         student = Student()
         student.get_students_tasks(id_student)
         selected_task = [task for task in student.homework_active if task['id'] == task_id]
-        if selected_task:
-            teacher = Teacher()
-            teacher.get_statistics(selected_task[0]['id_teacher'])
-            if selected_task[0]['file_name'] != None:
-                document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
-                await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
-            if selected_task[0]['answer_file_name'] != None:
-                document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
-                await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
-            if selected_task[0]['marks'] != None:
-                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_tasks_list_teacher_check_passed_task.markup)
-            else:
-                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_tasks_list_teacher_check_passed_task.markup)
-
-        else:
+        if not selected_task:
             await callback.message.answer("Задание не найдено.")
+            return
+        await state.update_data(selected_task_id=task_id)
+        teacher = Teacher()
+        teacher.get_statistics(selected_task[0]['id_teacher'])
+        if selected_task[0]['file_name'] != None:
+            document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
+            await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
+        if selected_task[0]['answer_file_name'] != None:
+            document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
+            await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
+        if selected_task[0]['marks'] != None:
+            await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_tasks_list_teacher_check_passed_task.markup)
+        else:
+            await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_tasks_list_teacher_check_passed_task.markup)
+
+    except AccessError as e:
+        await callback.message.answer(e.user_message)
+        await state.clear()
     except Exception as e:
         logging.error(f"Ошибка в функции catalog21: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -656,16 +721,22 @@ async def catalog24(callback: CallbackQuery, state: FSMContext, bot: Bot, callba
                                           reply_markup=keyboard_teacher_start.markup)
             await reset_flow(state)
             return
-        set_marks(data['selected_task_id'], callback_data.value)
+        # §3: оценку ставит только учитель-владелец FSM-контекста и самой задачи
+        check_ctx_owner(data, callback.from_user.id)
+        ensure_task_for_teacher(get_task_row(data['selected_task_id']), callback.from_user.id)
+        set_marks(data['selected_task_id'], callback_data.value, id_teacher=callback.from_user.id)
         await callback.message.answer('Оценка установлена')
-        id_student = (await state.get_data())['id_student']
-        task_id = (await state.get_data())['selected_task_id']
+        id_student = int(data['id_student'])
+        task_id = data['selected_task_id']
         student = Student()
         student.get_students_tasks(id_student)
         selected_task = [task for task in student.homework_active if task['id'] == task_id]
-        callback_data = (await state.get_data())['callback_data']
-        await special_function_teacher(callback, state, bot, selected_task, callback_data)
+        saved_callback_data = data.get('callback_data')
+        await special_function_teacher(callback, state, bot, selected_task, saved_callback_data)
         await reset_flow(state)  # оценка выставлена — терминальный шаг экрана (§2)
+    except AccessError as e:
+        await callback.message.answer(e.user_message)
+        await reset_flow(state)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog24: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -707,11 +778,14 @@ async def catalog26(callback: CallbackQuery, state: FSMContext, bot: Bot):
                                           reply_markup=keyboard_teacher_start.markup)
             await reset_flow(state)
             return
+        # §3: «решено» ставит только учитель-владелец FSM-контекста и самой задачи
+        check_ctx_owner(data, callback.from_user.id)
+        ensure_task_for_teacher(get_task_row(data['selected_task_id']), callback.from_user.id)
         if get_is_active(data['selected_task_id']) != -1:
             await callback.message.answer("Задание уже отмеченно как завершенное",
                                           reply_markup=keyboard_teacher_start.markup)
         else:
-            result = set_pass(data['selected_task_id'])
+            result = set_pass(data['selected_task_id'], id_teacher=callback.from_user.id)
             if not result:
                 await callback.message.answer('❌Задание не найдено',
                                               reply_markup=keyboard_teacher_start.markup)
@@ -724,6 +798,9 @@ async def catalog26(callback: CallbackQuery, state: FSMContext, bot: Bot):
                 await bot.send_message(task['id_student'],
                                        f"{mark_text} по дз на {task['deadline']}")
         await reset_flow(state)  # терминальный шаг (§2)
+    except AccessError as e:
+        await callback.message.answer(e.user_message)
+        await reset_flow(state)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog26: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -742,13 +819,19 @@ async def catalog27(callback: CallbackQuery, state: FSMContext, bot: Bot):
             await callback.message.answer('Сессия устарела, откройте список заданий заново',
                                           reply_markup=keyboard_teacher_start.markup)
             return
+        # §3: данные экрана принадлежат текущему учителю, ученик — в его списке
+        check_ctx_owner(data, callback.from_user.id)
+        ensure_student_of_teacher(id_student, callback.from_user.id)
         student = Student()
-        student.get_students_tasks(id_student)
+        student.get_students_tasks(int(id_student))
         selected_task = [task for task in student.homework_active if task['id'] == task_id]
         callback_data = data.get('callback_data')
         await special_function_teacher(callback, state, bot, selected_task, callback_data)
         await state.update_data(callback_data=None)  # черновик не переносим на следующий экран (§2)
         await state.set_state(CatalogTasksList.view_check_tasks_teacher)
+    except AccessError as e:
+        await callback.message.answer(e.user_message)
+        await reset_flow(state)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog27: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -759,27 +842,28 @@ async def catalog29(callback: CallbackQuery, state: FSMContext, callback_data: T
     try:
         await callback.answer()
         task_id = callback_data.task_id
-        await state.update_data(selected_task_id=task_id)
+        # §3: только задачи текущего ученика (см. catalog6)
         student = Student()
         student.get_students_tasks(callback.from_user.id)
         selected_task = [task for task in student.homework_active if task['id'] == task_id]
-        if selected_task:
-            teacher = Teacher()
-            teacher.get_statistics(selected_task[0]['id_teacher'])
-            if selected_task[0]['file_name'] != None:
-                document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
-                await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
-            if selected_task[0]['answer_file_name'] != None:
-                document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
-                await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
-            if selected_task[0]['marks'] != None:
-                await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}")
-            else:
-                await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}")
-
-            await state.update_data(added_text=None, file_name=None, file_type=None, file_data=None)
-        else:
+        if not selected_task:
             await callback.message.answer("Задание не найдено.")
+            return
+        await state.update_data(selected_task_id=task_id, ctx_owner=callback.from_user.id)
+        teacher = Teacher()
+        teacher.get_statistics(selected_task[0]['id_teacher'])
+        if selected_task[0]['file_name'] != None:
+            document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
+            await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
+        if selected_task[0]['answer_file_name'] != None:
+            document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
+            await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
+        if selected_task[0]['marks'] != None:
+            await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}")
+        else:
+            await callback.message.answer(f"Задание от преподавателя: {teacher.name_teacher['name']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}")
+
+        await state.update_data(added_text=None, file_name=None, file_type=None, file_data=None)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog29: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -789,28 +873,35 @@ async def catalog29(callback: CallbackQuery, state: FSMContext, callback_data: T
 async def catalog31(callback: CallbackQuery, state: FSMContext, callback_data: TaskCb):
     try:
         await callback.answer()
-        id_student = (await state.get_data())['id_student']
+        data = await state.get_data()
+        # §3: сверяем FSM-контекст с текущим учителем и составом его списка
+        check_ctx_owner(data, callback.from_user.id)
+        id_student = int(data['id_student'])
+        ensure_student_of_teacher(id_student, callback.from_user.id)
         task_id = callback_data.task_id
-        await state.update_data(selected_task_id=task_id)
         student = Student()
         student.get_students_tasks(id_student)
         selected_task = [task for task in student.homework_active if task['id'] == task_id]
-        if selected_task:
-            teacher = Teacher()
-            teacher.get_statistics(selected_task[0]['id_teacher'])
-            if selected_task[0]['file_name'] != None:
-                document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
-                await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
-            if selected_task[0]['answer_file_name'] != None:
-                document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
-                await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
-            if selected_task[0]['marks'] != None:
-                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_tasks_list_teacher_check.markup)
-            else:
-                await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_tasks_list_teacher_check.markup)
-
-        else:
+        if not selected_task:
             await callback.message.answer("Задание не найдено.")
+            return
+        await state.update_data(selected_task_id=task_id)
+        teacher = Teacher()
+        teacher.get_statistics(selected_task[0]['id_teacher'])
+        if selected_task[0]['file_name'] != None:
+            document_to_send = BufferedInputFile(file=selected_task[0]['file_data'], filename=selected_task[0]['file_name'])
+            await callback.message.answer_document(document=document_to_send, caption='Файл к заданию')
+        if selected_task[0]['answer_file_name'] != None:
+            document_to_send = BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name'])
+            await callback.message.answer_document(document=document_to_send, caption='Файл к вашему ответу')
+        if selected_task[0]['marks'] != None:
+            await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}\nОценка: {selected_task[0]['marks']}", reply_markup=keyboard_catalog_tasks_list_teacher_check.markup)
+        else:
+            await callback.message.answer(f"Id задания: {selected_task[0]['id']}\nДедлайн: {selected_task[0]['deadline']}\n\nТекст задания:\n{selected_task[0]['text']}\n\nТекст ответа: {selected_task[0]['answer_text']}", reply_markup=keyboard_catalog_tasks_list_teacher_check.markup)
+
+    except AccessError as e:
+        await callback.message.answer(e.user_message)
+        await state.clear()
     except Exception as e:
         logging.error(f"Ошибка в функции catalog31: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')

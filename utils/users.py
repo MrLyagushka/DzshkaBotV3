@@ -18,6 +18,17 @@ class Teacher():
         except Exception as e:
             print(f"Ошибка при выполнении функции get_statistics: {e}")
 
+    def is_student_of_teacher(self, id_student: int, id_teacher: int) -> bool:
+        try:
+            with connect(PATH_TO_DB_USERS) as db:
+                db.row_factory = Row
+                cursor = db.cursor()
+                cursor.execute("SELECT id FROM student WHERE id = ? AND id_teacher = ?", (id_student, id_teacher,))
+                return cursor.fetchone() is not None
+        except Exception as e:
+            print(f"Ошибка при выполнении функции is_student_of_teacher: {e}")
+            return False
+
 class Student():
     def get_statistics(self, id: int):
         try:
@@ -41,3 +52,20 @@ class Student():
                 self.homework_active = cursor.fetchall()
         except Exception as e:
             print(f"Ошибка при выполнении функции get_students_tasks: {e}")
+
+    _TASK_COLUMNS = ("id, id_teacher, id_student, text, file_name, file_type, file_data, "
+                     "deadline, is_active, answer_text, answer_file_name, answer_file_type, "
+                     "answer_file_data, marks")
+
+    def get_task_by_id(self, id_task: int):
+        """Строка задачи по id (для проверок доступа, §3). None — если задачи нет."""
+        try:
+            with connect(PATH_TO_DB_TASK) as db:
+                db.row_factory = Row
+                cursor = db.cursor()
+                cursor.execute(f"SELECT {self._TASK_COLUMNS} FROM task WHERE id = ?", (id_task,))
+                row = cursor.fetchone()
+                return dict(row) if row is not None else None
+        except Exception as e:
+            print(f"Ошибка при выполнении функции get_task_by_id: {e}")
+            return None

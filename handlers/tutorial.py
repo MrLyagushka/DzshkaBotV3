@@ -16,9 +16,9 @@ async def tutorial(message: Message):
             db.row_factory = Row
             cursor = db.cursor()
             cursor.execute("SELECT text FROM tutorial")
-        if message.from_user.id in [x['id'] for x in is_teacher()]:
+        if is_teacher(message.from_user.id):
             await message.answer(cursor.fetchone()['text'], reply_markup=keyboard_teacher_start.markup)
-        elif message.from_user.id in [x['id'] for x in is_student()]:
+        elif is_student(message.from_user.id):
             await message.answer(cursor.fetchone()['text'], reply_markup=keyboard_student_start.markup)
     except Exception as e:
         logging.error(f'Ошибка в функции tutorial: {e}')

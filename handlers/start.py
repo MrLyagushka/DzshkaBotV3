@@ -20,22 +20,28 @@ class Start(StatesGroup):
 @router_start.message(CommandStart())
 async def start1(message: Message, state: FSMContext):
     try:
-        if are_you_new_user(message.from_user.id) == 0:
+        # §5: один запрос are_you_new_user вместо тройного (было: ==0, ==1, !=0)
+        new_user = are_you_new_user(message.from_user.id)
+        if new_user == 0:
             add_user_to_db(message.from_user.id, message.from_user.username)
             await message.answer('Привет, ты тут впервые, ты учитель или ученик?', reply_markup=keyboard_start.markup)
             await state.set_state(Start.second)
-        elif are_you_new_user(message.from_user.id) == 1:
-            message.answer('❌Ошибка, обратитесь в поддержку')
-        elif are_you_new_user(message.from_user.id) != 0:
-            if message.from_user.id in [x['id'] for x in is_teacher()]:
+        elif new_user == 1:
+            await message.answer('❌Ошибка, обратитесь в поддержку')
+        else:
+            # §5: точечные проверки роли (SELECT 1 ... WHERE id = ?) вместо
+            # загрузки всей таблицы; None — сбой БД, не «не состоит»
+            if is_teacher(message.from_user.id):
                 await message.answer('Привет, хорошего дня', reply_markup=keyboard_teacher_start.markup)
                 await state.set_state(Start.first)
-            elif message.from_user.id in [x['id'] for x in is_student()]:
+            elif is_student(message.from_user.id):
                 await message.answer('Привет, хорошего дня', reply_markup=keyboard_student_start.markup)
                 await state.set_state(Start.first)
+            else:
+                await message.answer('❌Ошибка, обратитесь в поддержку')
     except Exception as e:
         logging.error(f"Ошибка в функции start: {e}")
-        message.answer('❌Ошибка, обратитесь в поддержку')
+        await message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_start.message(Start.second)
 async def start2(message: Message, state: FSMContext):
@@ -45,7 +51,7 @@ async def start2(message: Message, state: FSMContext):
         await message.answer('Введите свое имя:')
     except Exception as e:
         logging.error(f"Ошибка в функции start2: {e}")
-        message.answer('❌Ошибка, обратитесь в поддержку')
+        await message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_start.message(Start.third)
 async def start3(message: Message, state: FSMContext):
@@ -62,4 +68,4 @@ async def start3(message: Message, state: FSMContext):
         await state.set_state(Start.first)
     except Exception as e:
         logging.error(f"Ошибка в функции start3: {e}")
-        message.answer('❌Ошибка, обратитесь в поддержку')
+        await message.answer('❌Ошибка, обратитесь в поддержку')

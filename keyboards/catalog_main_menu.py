@@ -8,3 +8,5 @@ keyboard_catalog_main_menu.new_button('Список учеников', 2, callba
 keyboard_catalog_main_menu_confirm = Menu('inline', 1)
 keyboard_catalog_main_menu_confirm.new_button('✅ Подтвердить удаление', 1, callback_data='confirm_delete_student')
 keyboard_catalog_main_menu_confirm.new_button('❌ Отменить', 1, callback_data='cancel_delete_student')
+# §4: confirm-экран one-shot — после терминального действия кнопки снимаются
+keyboard_catalog_main_menu_confirm.clear_markup = True

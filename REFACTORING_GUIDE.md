@@ -259,6 +259,35 @@ round-trip и negative-тесты фильтров MarkCb/TimeCb/StudentCb/TaskC
 5. §5 чистка (дубликаты функций, await, логирование) — параллельно с 2–4, но отдельными коммитами.
 6. §7 регрессионные тесты, затем полировка.
 
+✅ **СТАТУС (выполнено):** порядок соблюдён; фактически история коммитов:
+§1 → §2 → §2-финал (Homework.confirm_send) → §3 → §4 → §5. Отклонение от плана:
+§3 выполнялся до §2 (а не «после» строго по нумерации разделов), что допустимо —
+§2 и §3 пересекаются только в confirm-экранах, и оба закрыты до §4/§5.
+Пункт 6 (§7 автотесты pytest) — не выполнен, остаётся открытым (см. ниже «Открытые пункты»).
+
+### Итоговый статус всех разделов (на момент закрытия §5)
+
+| Раздел | Статус | Ключевой результат |
+|---|---|---|
+| §1 callback_data | ✅ | `utils/callbacks.py`: StudentCb/TaskCb/PageCb/MarkCb/TimeCb, нет срезов `F.data[:N]`, кнопки «Имя (id)» |
+| §2 FSM | ✅ | состояние = экран; `reset_flow()`; убран `CatalogTasksList.fifth`; confirm-экраны: confirm_pass / confirm_set_passed / confirm_send (Homework) |
+| §3 доступ | ✅ | `utils/access.py` (check_ctx_owner, ensure_task_for_teacher/student, ensure_student_of_teacher, stale_session); ctx_owner во FSM; WHERE с владельцем + rowcount в add_student/remove_student/save_answer_task/set_pass/set_marks |
+| §4 устаревшие сообщения | ✅ | `show_screen()` (edit вместо answer) ~50 мест; one-shot confirm (`clear_markup=True` + `retire_keyboard()` до действия); двойной `callback.answer()` в catalog24 убран; пагинация: guard `inline_message_id is None` в service_handlers |
+| §5 чистка | ✅ | дубль special_function удалён; set_pass вызывается с id_teacher (чужое задание не отметить, ученик уведомляется только при 'ok'); `.answer()` везде с await; are_you_new_user один раз; is_student/is_teacher(id) — SELECT 1; Bot через get_bot() (не на импорте); logging вместо print |
+| §7 pytest-тесты | ⏳ открыто | контракты проверивались ad-hoc скриптами на временной SQLite; оформить как tests/test_*.py |
+| §8 S1–S10 вручную | ⏳ открыто | требует реального Telegram-токена |
+
+### Открытые пункты (вне объёма §1–§5)
+
+1. §5.9 (план): `DinamicKeyboard` принимает `button_info` строкой `'st_<owner>'/'ds_<owner>'` —
+   разделить на `kind` + `owner_id`. Сейчас безопасно (owner берётся из `from_user.id` в точке
+   генерации клавиатуры, а payload колбэков уже типизирован StudentCb), поэтому пункт оставлен
+   как необязательная полировка.
+2. Пагинация после отвязки последнего ученика: страница может остаться с пустым списком —
+   не падает (guard выше), но показывает пустой экран; лечится авто-сдвигом first_index.
+3. §7: перенести ad-hoc проверки (roundtrip pack/unpack, DB-контракты 'ok'/'not_found'/'error',
+   is_student/is_teacher True/False/None) в pytest.
+
 ---
 
 ## 7. Мини-тесты (pytest; dispatch aiogram можно эмулировать fake-объектами)

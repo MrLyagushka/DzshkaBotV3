@@ -474,8 +474,12 @@ async def special_function_teacher(callback: CallbackQuery, state: FSMContext, b
             documents.append((BufferedInputFile(file=selected_task[0]['answer_file_data'], filename=selected_task[0]['answer_file_name']), 'Файл к ответу'))
         if selected_task[0]['marks'] != None:
             if callback_data == 'set_marks_pased_task':
-                # §5: set_pass возвращает {'status','task'} — различаем отказ и сбой БД
-                res = set_pass((await state.get_data())['selected_task_id'])
+                # §5: set_pass возвращает {'status','task'} — различаем отказ и сбой БД.
+                # §3: id_teacher передаётся ожидаемым владельцем (WHERE ... AND id_teacher),
+                # чужое задание отметить нельзя. Ученик уведомляется ТОЛЬКО при status=='ok'
+                # (§5: раньше «оценка» уходила ученику до подтверждения записи).
+                res = set_pass((await state.get_data())['selected_task_id'],
+                               id_teacher=callback.from_user.id)
                 if res['status'] == 'ok' and res['task'] is not None:
                     await bot.send_message(res['task']['id_student'], f'Вам изменили оценку на {res["task"]["marks"]} по дз на {res["task"]["deadline"]}')
                 elif res['status'] == 'error':

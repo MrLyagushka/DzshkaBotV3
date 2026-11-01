@@ -11,7 +11,8 @@ from utils.users import Teacher, Student
 from utils.template import DinamicKeyboard
 from utils.callbacks import StudentCb
 from utils.catalog import add_student, remove_student
-from utils.access import AccessError, check_ctx_owner, ensure_student_of_teacher
+from utils.access import (AccessError, check_ctx_owner, ensure_student_of_teacher,
+                          show_screen, retire_keyboard)
 
 router_catalog_main_menu = Router()
 
@@ -28,10 +29,14 @@ async def catalog16(callback: CallbackQuery, state: FSMContext):
         teacher = Teacher()
         teacher.get_statistics(callback.from_user.id)
         if teacher.students_info:
-            await callback.message.answer('Выберите ученика', reply_markup=DinamicKeyboard(2,3,'no',0,f'st_{callback.from_user.id}').generate_keyboard())
+            # §4: экран показываем редактированием своего сообщения (show_screen),
+            # а не новым answer — старые кнопки списков не накапливаются в чате
+            await show_screen(callback, 'Выберите ученика',
+                              reply_markup=DinamicKeyboard(2,3,'no',0,f'st_{callback.from_user.id}').generate_keyboard())
 
         else:
-            await callback.message.answer('У вас нет учеников. Прикрепите ученика через "Список учеников"->"Добавить ученика"', reply_markup=keyboard_teacher_start.markup)
+            await show_screen(callback, 'У вас нет учеников. Прикрепите ученика через "Список учеников"->"Добавить ученика"',
+                              reply_markup=keyboard_teacher_start.markup)
     
     except Exception as e:
         logging.error(f"Ошибка в функции catalog16: {e}")
@@ -41,7 +46,8 @@ async def catalog16(callback: CallbackQuery, state: FSMContext):
 async def catalog2(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.answer()
-        await callback.message.answer('Введите id ученика для добавления')
+        # §4: экран ввода — edit вместо нового сообщения (не копить кнопки меню)
+        await show_screen(callback, 'Введите id ученика для добавления')
         await state.set_state(CatalogMainMenu.add_student)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog2: {e}")
@@ -54,13 +60,15 @@ async def catalog_delete_student(callback: CallbackQuery, state: FSMContext):
         teacher = Teacher()
         teacher.get_statistics(callback.from_user.id)
         if teacher.students_info:
-            await callback.message.answer('Выберите ученика для удаления', reply_markup=DinamicKeyboard(2,3,'no',0,f'ds_{callback.from_user.id}').generate_keyboard())
+            # §4: экран — edit вместо накопления новых сообщений с кнопками
+            await show_screen(callback, 'Выберите ученика для удаления',
+                              reply_markup=DinamicKeyboard(2,3,'no',0,f'ds_{callback.from_user.id}').generate_keyboard())
             # §3: запоминаем владельца контекста — кнопкой из чужого сообщения
             # список не матчится (check_ctx_owner в confirm-хендлере)
             await state.update_data(ctx_owner=callback.from_user.id)
             await state.set_state(CatalogMainMenu.delete_student_id)
         else:
-            await callback.message.answer('У вас нет учеников.', reply_markup=keyboard_teacher_start.markup)
+            await show_screen(callback, 'У вас нет учеников.', reply_markup=keyboard_teacher_start.markup)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog_delete_student: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -85,7 +93,10 @@ async def catalog_delete_student_confirm(callback: CallbackQuery, state: FSMCont
         student = Student()
         student.get_statistics(student_id)
         name = student.name_student['name'] if student.name_student else 'Неизвестно'
-        await callback.message.answer(f'Вы уверены, что хотите удалить ученика "{name}" (id: {student_id}) из вашего списка?', reply_markup=keyboard_catalog_main_menu_confirm.markup)
+        # §4: confirm-экран one-shot — клавиатура с clear_markup=True снимает
+        # кнопки предыдущего экрана; сам экран показывается edit-сообщением
+        await show_screen(callback, f'Вы уверены, что хотите удалить ученика "{name}" (id: {student_id}) из вашего списка?',
+                          reply_markup=keyboard_catalog_main_menu_confirm.markup)
         await state.set_state(CatalogMainMenu.confirm_delete_student)
     except AccessError as e:
         await callback.message.answer(e.user_message)
@@ -111,6 +122,9 @@ async def catalog_confirm_delete_student(callback: CallbackQuery, state: FSMCont
             await callback.message.answer('❌Ученик с таким ID не найден в вашем списке', reply_markup=keyboard_teacher_start.markup)
             await state.clear()
             return
+        # §4: confirm-кнопка one-shot — снимаем клавиатуру ДО выполнения действия,
+        # иначе двойным кликом из старого сообщения можно повторить удаление
+        await retire_keyboard(callback.message)
         # remove_student делает UPDATE ... WHERE id = ? AND id_teacher = ? (§3.5)
         # и возвращает статус (§5): 'not_found' — ученик уже отвязался, 'error' — сбой БД
         status = remove_student(student_id, callback.from_user.id)
@@ -136,7 +150,9 @@ async def catalog_cancel_delete_student(callback: CallbackQuery, state: FSMConte
         await callback.answer()
         data = await state.get_data()
         check_ctx_owner(data, callback.from_user.id)
-        await callback.message.answer('Удаление ученика отменено.', reply_markup=keyboard_catalog_main_menu.markup)
+        # §4: экран отмены показываем редактированием confirm-сообщения —
+        # его one-shot кнопки («✅ Подтвердить удаление») при этом гасятся
+        await show_screen(callback, 'Удаление ученика отменено.', reply_markup=keyboard_catalog_main_menu.markup)
     except AccessError as e:
         await callback.message.answer(e.user_message)
     except Exception as e:

@@ -247,10 +247,19 @@ async def catalog_cancel_by_text(message: Message, state: FSMContext):
 @router_catalog_tasks_list.message(CatalogTasksList.add_text_to_task)
 async def catalog8(message: Message, state: FSMContext):
     try:
+        # §3: черновик принадлежит тому, кто открыл экран (message.from_user.id —
+        # реальный отправитель); старый экран в чужом чате сюда не матчится
+        check_ctx_owner(await state.get_data(), message.from_user.id)
         await state.update_data(added_text=message.text)
         await message.answer('Текст успешно добавлен к заданию.')
         await special_function(message, state)
         await reset_flow(state)  # экран закрыт — больше не ловим текстовые сообщения (add_text_to_task)
+    except AccessError as e:
+        await message.answer(e.user_message)
+        await reset_flow(state)
+    except AccessError as e:
+        await message.answer(e.user_message)
+        await reset_flow(state)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog8: {e}")
         await message.answer('❌Ошибка, обратитесь в поддержку')
@@ -272,6 +281,8 @@ async def catalog9(callback: CallbackQuery, state: FSMContext):
 @router_catalog_tasks_list.message(F.photo, CatalogTasksList.add_file_to_task)
 async def handle_photo_or_album(message: Message, state: FSMContext, bot):
     try:
+        # §3: фото/альбом принимает только владелец FSM-черновика (реальный отправитель)
+        check_ctx_owner(await state.get_data(), message.from_user.id)
         media_group_id = message.media_group_id
         current_state = await state.get_data()
 
@@ -324,6 +335,9 @@ async def handle_photo_or_album(message: Message, state: FSMContext, bot):
             await reset_flow(state)  # файл принят — экран ввода закрываем (§2)
 
 
+    except AccessError as e:
+        await message.answer(e.user_message)
+        await reset_flow(state)
     except Exception as e:
         logging.error(f"Ошибка в handle_photo_or_album: {e}")
         await message.answer("❌ Ошибка при обработке фото")
@@ -334,6 +348,8 @@ async def handle_photo_or_album(message: Message, state: FSMContext, bot):
 @router_catalog_tasks_list.message((F.document | F.photo | F.video | F.audio), CatalogTasksList.add_file_to_task)
 async def catalog10(message: Message, state: FSMContext, bot: Bot):
     try:
+        # §3: файл принимает только владелец FSM-черновика (реальный отправитель)
+        check_ctx_owner(await state.get_data(), message.from_user.id)
         # 2. Определяем тип и скачиваем файл → получаем bytes
         file_data: bytes | None = None
         file_name: str | None = None
@@ -374,6 +390,9 @@ async def catalog10(message: Message, state: FSMContext, bot: Bot):
             await message.answer('Файл прикреплен')
             await special_function(message, state)
             await reset_flow(state)
+    except AccessError as e:
+        await message.answer(e.user_message)
+        await reset_flow(state)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog10: {e}")
         await message.answer('❌Ошибка, обратитесь в поддержку')
@@ -960,17 +979,29 @@ async def catalog35(callback: CallbackQuery, state: FSMContext, callback_data: T
                                           reply_markup=keyboard_teacher_start.markup)
             await reset_flow(state)
             return
+        # §3: дедлайн меняет только учитель-владелец FSM-контекста и самой задачи
+        check_ctx_owner(data, callback.from_user.id)
+        ensure_task_for_teacher(get_task_row(task_id), callback.from_user.id)
         hour = f'{callback_data.hour:02d}'
         date_with_time = f"{date_str.split(' ')[0]} {hour}:00:00"
 
-        update_deadline(task_id, date_with_time)
+        if not update_deadline(task_id, date_with_time, id_teacher=callback.from_user.id):
+            await callback.answer()
+            await callback.message.answer('Задание не найдено или уже изменено, начните заново',
+                                          reply_markup=keyboard_teacher_start.markup)
+            await reset_flow(state)
+            return
         
         await callback.answer(f"Время обновлено: {date_with_time}")
         await special_function_callback_not_callback(callback, state)
         await reset_flow(state)  # дедлайн изменён — терминальный шаг экрана (§2)
+    except AccessError as e:
+        await callback.message.answer(e.user_message)
+        await reset_flow(state)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog35: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
+        await reset_flow(state)
 
 @router_catalog_tasks_list.callback_query(F.data == 'return', CatalogTasksList.view_check_tasks_teacher)
 async def catalog36(callback: CallbackQuery, state: FSMContext):
@@ -983,10 +1014,15 @@ async def catalog36(callback: CallbackQuery, state: FSMContext):
                                           reply_markup=keyboard_teacher_start.markup)
             await reset_flow(state)
             return
-        
+        # §3: «на дорешку» возвращает задание только его учитель-владелец
+        check_ctx_owner(data, callback.from_user.id)
+        ensure_task_for_teacher(get_task_row(data['selected_task_id']), callback.from_user.id)
         await callback.answer()
         await callback.message.answer('Пришлите коментарий для отправки ученику или «Отмена», что бы отменить')
         await state.set_state(CatalogTasksList._return)
+    except AccessError as e:
+        await callback.message.answer(e.user_message)
+        await reset_flow(state)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog36: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')
@@ -1002,6 +1038,10 @@ async def catalog37(message: Message, state: FSMContext, bot: Bot):
                                  reply_markup=keyboard_teacher_start.markup)
             await reset_flow(state)
             return
+        # §3: комментарий уходит только если задача принадлежит этому учителю
+        # (message.from_user.id — реальный отправитель, не данные из FSM)
+        check_ctx_owner(data, message.from_user.id)
+        ensure_task_for_teacher(get_task_row(task_id), message.from_user.id)
         rows = get_date(task_id)
         if not rows:
             await message.answer('Задание не найдено', reply_markup=keyboard_teacher_start.markup)
@@ -1012,10 +1052,18 @@ async def catalog37(message: Message, state: FSMContext, bot: Bot):
         if text.strip().lower() in ('none', 'отмена'):
             await message.answer("Операция отменена", reply_markup=keyboard_teacher_start.markup)
         else:
+            if not return_goback(task_id, id_teacher=message.from_user.id):
+                await message.answer('Задание не найдено или уже изменено, начните заново',
+                                     reply_markup=keyboard_teacher_start.markup)
+                await reset_flow(state)
+                return
             await message.answer("Задание отправлено на дорешку, комментарий отправлен ученику", reply_markup=keyboard_teacher_start.markup)
-            return_goback(task_id)
             await bot.send_message(chat_id=id_student, text=f"Задание на {date} было отправлено на дорешку с комментарием преподавателя:\n\n{text}")
         await reset_flow(state)  # терминальный шаг «на дорешку» (§2)
+    except AccessError as e:
+        await message.answer(e.user_message)
+        await reset_flow(state)
     except Exception as e:
         logging.error(f"Ошибка в функции catalog37: {e}")
         await message.answer('❌Ошибка, обратитесь в поддержку')
+        await reset_flow(state)

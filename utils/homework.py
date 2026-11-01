@@ -28,8 +28,11 @@ def save_task(id_teacher: int, id_student: int, text: str, file_name: str, file_
                 "INSERT INTO task (id, id_teacher, id_student, text, file_name, file_type, file_data, deadline, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (last_id, id_teacher, id_student, text, file_name, file_type, file_data, homework_date, 1,)
             )
+            db.commit()
+            return True
     except Exception as e:
         logging.error(f"Ошибка при выполнении функции save_task: {e}")
+        return False
 
 def set_marks(id_task: int, marks: int):
     try:

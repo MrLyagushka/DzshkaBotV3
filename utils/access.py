@@ -71,6 +71,20 @@ def ensure_student_of_teacher(student_id: int, teacher_id: int) -> None:
         raise AccessError('Этот ученик больше не в вашем списке, начните заново')
 
 
+def ctx_owner_field(user_id: int) -> dict:
+    """Значение для state.update_data(..., **ctx_owner_field(id)) — единый способ
+    пометить FSM-черновики владельцем (§3.2)."""
+    return {'ctx_owner': int(user_id)}
+
+
+async def ensure_student_exists(student_id: int) -> None:
+    """Ученик существует в БД (для add_student; §3.3)."""
+    student = Student()
+    student.get_statistics(int(student_id))
+    if not getattr(student, 'name_student', None):
+        raise AccessError('Ученик с таким ID не найден')
+
+
 async def stale_session(callback, state) -> None:
     """Единая реакция на отказ доступа: ответ + обязательный сброс экрана (§2/§3)."""
     try:

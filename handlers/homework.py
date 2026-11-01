@@ -11,7 +11,8 @@ from keyboards.start import keyboard_teacher_start
 from utils.template import DinamicKeyboard
 from utils.callbacks import StudentCb, TimeCb
 from utils.homework import save_task
-from utils.users import Teacher
+from utils.users import Teacher, Student
+from utils.access import AccessError, check_ctx_owner, ensure_student_of_teacher
 from utils.images_to_pdf import process_album_after_timeout, process_album_after_timeout2
 import asyncio
 
@@ -45,21 +46,32 @@ async def homework0(message: Message, state: FSMContext):
 @router_homework.callback_query(StudentCb.filter(mode='view'), Homework.first)
 async def homework1(callback: CallbackQuery, state: FSMContext, callback_data: StudentCb):
     try:
-        await state.update_data(student_id=callback_data.student_id)
+        # §3: задание можно выдать только ученику из своего списка (кнопка может
+        # остаться живой из старого сообщения, когда ученик уже отвязался)
+        ensure_student_of_teacher(callback_data.student_id, callback.from_user.id)
+        await state.update_data(student_id=callback_data.student_id, ctx_owner=callback.from_user.id)
         await callback.answer()
         await callback.message.answer('Пришлите текст задания')
         await state.set_state(Homework.fifth)
+    except AccessError as e:
+        await callback.message.answer(e.user_message)
+        await state.clear()
     except Exception as e:
         logging.error(f"Ошибка в функции homework1: {e}")
-        callback.message.answer('❌Ошибка, обратитесь в поддержку')
+        await callback.message.answer('❌Ошибка, обратитесь в поддержку')
 
 @router_homework.message(Homework.fifth)
 async def homework2(message: Message, state: FSMContext):
     try:
+        # §3: текст задания пишет только владелец FSM-черновика (реальный отправитель)
+        check_ctx_owner(await state.get_data(), message.from_user.id)
         await state.update_data(homework_text=message.text)
         await message.answer('Текст задания установлен', reply_markup=keyboard_homework.markup)
         await state.update_data(homework_date=0)
         await state.set_state(Homework.second)
+    except AccessError as e:
+        await message.answer(e.user_message)
+        await state.clear()
     except Exception as e:
         logging.error(f"Ошибка в функции homework2: {e}")
         await message.answer('❌Ошибка, обратитесь в поддержку')
@@ -202,6 +214,8 @@ async def handle_photo_or_album(message: Message, state: FSMContext, bot):
 @router_homework.message((F.document | F.video | F.audio), Homework.third)
 async def homework4(message: Message, state: FSMContext, bot: Bot):
     try:
+        # §3: файл принимает только владелец FSM-черновика выдачи (§2/§3)
+        check_ctx_owner(await state.get_data(), message.from_user.id)
         # 2. Определяем тип и скачиваем файл → получаем bytes
         file_data: bytes | None = None
         file_name: str | None = None
@@ -334,6 +348,9 @@ async def homework11(callback: CallbackQuery, bot: Bot, state: FSMContext):
                                           reply_markup=keyboard_teacher_start.markup)
             await state.clear()
             return
+        # §3: сверяем владельца черновика и состав списка на момент отправки
+        check_ctx_owner(data, callback.from_user.id)
+        ensure_student_of_teacher(student_id, callback.from_user.id)
         date_val = data.get('homework_date', 0)
         if date_val == 0 or not date_val:
             await state.set_state(Homework.second)
@@ -342,10 +359,18 @@ async def homework11(callback: CallbackQuery, bot: Bot, state: FSMContext):
             except Exception as e:
                 logging.error(f"Ошибка редактирования сообщения в homework11: {e}")
         else:
-            save_task(id_teacher=callback.from_user.id, id_student=student_id, text=data['homework_text'], file_name=data.get('file_name'), file_type=data.get('file_type'), file_data=data.get('file_data'), homework_date=date_val)
+            saved = save_task(id_teacher=callback.from_user.id, id_student=student_id, text=data['homework_text'], file_name=data.get('file_name'), file_type=data.get('file_type'), file_data=data.get('file_data'), homework_date=date_val)
+            if not saved:
+                await callback.message.answer('Не удалось сохранить задание, попробуйте еще раз',
+                                              reply_markup=keyboard_teacher_start.markup)
+                await state.clear()
+                return
             await bot.send_message(chat_id=student_id, text=f"Новое задание!\nДедлайн: {date_val}")
             await callback.message.answer('Задание отправлено ученику!', reply_markup=keyboard_teacher_start.markup)
             await state.clear()  # терминальный шаг — обязательный сброс (§2)
+    except AccessError as e:
+        await callback.message.answer(e.user_message)
+        await state.clear()
     except Exception as e:
         logging.error(f"Ошибка в функции homework11: {e}")
         await callback.message.answer('❌Ошибка, обратитесь в поддержку')

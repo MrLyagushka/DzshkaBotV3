@@ -28,6 +28,9 @@ keyboard_catalog_tasks_list_cancel_input.new_button('❌ Отменить', 1, c
 keyboard_catalog_tasks_list_confirm_generic = Menu('inline', 2)
 keyboard_catalog_tasks_list_confirm_generic.new_button('✅ Подтвердить', 1, callback_data='confirm')
 keyboard_catalog_tasks_list_confirm_generic.new_button('❌ Отменить', 2, callback_data='cancel')
+# §4 one-shot: хендлеры подтверждения снимают кнопки со своего сообщения после
+# нажатия «✅ Подтвердить»; «❌ Отменить» остаётся активной (ведёт к следующему шагу).
+keyboard_catalog_tasks_list_confirm_generic.clear_markup = True
 
 keyboard_catalog_tasks_list_student_pass_confirm = keyboard_catalog_tasks_list_confirm_generic
 keyboard_catalog_tasks_list_teacher_pass_confirm = keyboard_catalog_tasks_list_confirm_generic

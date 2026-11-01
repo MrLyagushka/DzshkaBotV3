@@ -95,3 +95,56 @@ async def stale_session(callback, state) -> None:
         'Сообщение устарело, начните заново',
     )
     await state.clear()
+
+
+async def retire_keyboard(message) -> None:
+    """Снять кнопки с текущего сообщения (one-shot для confirm-экранов, §4).
+
+    Терминальные шаги («✅ Подтвердить» → действие выполнено) обязаны «гасить»
+    свою клавиатуру: иначе живой кнопкой из старого сообщения можно повторить
+    действие или подтвердить чужой экран. Кнопки, ведущие к следующему шагу
+    (например «❌ Отменить»), не снимаются — см. clear_markup=... в
+    keyboards/catalog_tasks_list.py.
+    """
+    try:
+        await message.edit_reply_markup(reply_markup=None)
+    except Exception as e:
+        # «message is not modified» / сообщение удалено — не критично
+        logging.debug(f'retire_keyboard: edit_reply_markup пропущен: {e}')
+
+
+def _is_confirm_kb(markup) -> bool:
+    return bool(getattr(markup, 'clear_markup', False))
+
+
+async def show_screen(callback, text: str = None, reply_markup=None,
+                      document=None, caption: str = ''):
+    """Показать экран (§4): редактировать своё сообщение вместо answer().
+
+    Колбэк-хендлеры отвечают через callback.message.answer(...) — в чате
+    накапливаются старые сообщения с живыми кнопками, по которым можно
+    повторить терминальное действие или перехватить чужой экран. Здесь:
+      - текст экрана ставится edit_text на сообщении, с которого нажали кнопку;
+      - если предыдущий экран был one-shot-подтверждением (clear_markup=True),
+        его кнопки снимаются до показа нового сообщения;
+      - edit_text недоступен (сообщение слишком старое/удалено) — откат к
+        обычному answer(), чтобы не ронять хендлер.
+    Возвращает отправленное/отредактированное сообщение.
+    """
+    if reply_markup is not None and _is_confirm_kb(reply_markup):
+        await retire_keyboard(callback.message)
+    if document is not None:
+        await callback.message.answer_document(document=document, caption=caption)
+    msg = None
+    if text is not None:
+        try:
+            msg = await callback.message.edit_text(text, reply_markup=reply_markup)
+        except Exception as e:
+            logging.debug(f'show_screen: edit_text не удался ({e}), отвечаю новым сообщением')
+            msg = await callback.message.answer(text, reply_markup=reply_markup)
+    elif reply_markup is not None:
+        try:
+            msg = await callback.message.edit_reply_markup(reply_markup=reply_markup)
+        except Exception as e:
+            logging.debug(f'show_screen: edit_reply_markup не удался ({e})')
+    return msg
